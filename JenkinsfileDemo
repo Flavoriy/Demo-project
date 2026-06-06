@@ -1,3 +1,5 @@
+@Library('jenkins-share-lib@main') _
+
 pipeline {
     agent {
         label 'agent'
@@ -70,20 +72,15 @@ pipeline {
 
         stage('Docker Push GHCR') {
             steps {
-                echo 'Pushing Docker image to GHCR...'
-                // Sửa đổi từ loại 'usernamePassword' sang 'string' để nhận diện đúng loại Secret text 'ghcr-token'
-                withCredentials([string(credentialsId: 'ghcr-token', variable: 'REGISTRY_TOKEN')]) {
-                    sh '''
-                        set -e
-                        set +x
-                        # Hệ thống sử dụng trực tiếp token kết hợp với tên tài khoản của bạn để login
-                        echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "flavoriy" --password-stdin
-                        set -x
-                        
-                        docker push "$IMAGE_REF"
-                        docker push "$IMAGE_EXTRA_REF"
-                        docker logout "$REGISTRY"
-                    '''
+                script {
+                    dockerPush(
+                        imageRef: env.IMAGE_REF,
+                        additionalImageRefs: [env.IMAGE_EXTRA_REF],
+                        registry: env.REGISTRY,
+                        credentialsId: 'ghcr-token',
+                        credentialType: 'string',
+                        username: 'flavoriy'
+                    )
                 }
             }
         }
