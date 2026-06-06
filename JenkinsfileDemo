@@ -9,8 +9,6 @@ pipeline {
         REGISTRY = 'ghcr.io'
         IMAGE_REPOSITORY = 'ghcr.io/Flavoriy/tikto'
         DOCKERFILE = 'Dockerfile'
-        
-        // Đổi thành MY_DOCKER_CONTEXT để không bị trùng với biến môi trường hệ thống của Jenkins
         MY_DOCKER_CONTEXT = '.' 
     }
 
@@ -18,24 +16,6 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-            }
-        }
-
-        stage('Clean Install & Build') {
-            agent {
-                docker {
-                    image 'node:20-alpine'
-                    // Đổi đường dẫn lưu cache vào hẳn trong /tmp của container
-                    args '-v ${WORKSPACE}/.npm-cache:/tmp/.npm-cache --env npm_config_cache=/tmp/.npm-cache'
-                    reuseNode true
-                }
-            }
-            steps {
-                echo 'Running Node.js build inside node:20-alpine container...'
-                sh 'node -v'
-                sh 'npm -v'
-                sh 'npm ci'
-                sh 'npm run build'
             }
         }
 
@@ -52,17 +32,16 @@ pipeline {
                         .take(128)
                     env.IMAGE_REF = "${env.IMAGE_REPOSITORY}:${env.IMAGE_TAG}"
 
-                    echo "Docker image: ${env.IMAGE_REF}"
+                    echo "Docker image target ref: ${env.IMAGE_REF}"
                 }
             }
         }
 
         stage('Docker Build') {
             steps {
-                echo 'Building Docker image on Jenkins agent...'
+                echo 'Building Docker image directly on Jenkins agent...'
                 sh '''
                     set -e
-                    # Sử dụng biến MY_DOCKER_CONTEXT đã được đổi tên ở đây
                     docker build -f "$DOCKERFILE" -t "$IMAGE_REF" "$MY_DOCKER_CONTEXT"
                 '''
             }
