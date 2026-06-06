@@ -25,8 +25,8 @@ pipeline {
             agent {
                 docker {
                     image 'node:20-alpine'
-                    // Thay đổi đường dẫn mount sang thư mục .npm-cache ngay tại workspace
-                    args '-v ${WORKSPACE}/.npm-cache:/.npm --env npm_config_cache=/.npm'
+                    // Đổi đường dẫn lưu cache vào hẳn trong /tmp của container
+                    args '-v ${WORKSPACE}/.npm-cache:/tmp/.npm-cache --env npm_config_cache=/tmp/.npm-cache'
                     reuseNode true
                 }
             }
