@@ -26,10 +26,13 @@ pipeline {
                     String commit = env.GIT_COMMIT ?: sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
                     String rawTag = "${branchName}-${commit.take(12)}-${env.BUILD_NUMBER ?: '0'}"
 
+                    // Ép toàn bộ định dạng chuỗi tag về chữ thường (lowercase) để Docker an tâm build
                     env.IMAGE_TAG = rawTag
                         .replaceFirst(/^origin\//, '')
                         .replaceAll(/[^A-Za-z0-9_.-]/, '-')
                         .take(128)
+                        .toLowerCase()
+                        
                     env.IMAGE_REF = "${env.IMAGE_REPOSITORY}:${env.IMAGE_TAG}"
 
                     echo "Docker image target ref: ${env.IMAGE_REF}"
@@ -57,15 +60,19 @@ pipeline {
                 }
             }
         }
+
         stage('Docker Push GHCR') {
             steps {
                 echo 'Pushing Docker image to GHCR...'
-                withCredentials([usernamePassword(credentialsId: 'ghcr-token', usernameVariable: 'REGISTRY_USERNAME', passwordVariable: 'REGISTRY_TOKEN')]) {
+                // Sửa đổi từ loại 'usernamePassword' sang 'string' để nhận diện đúng loại Secret text 'ghcr-token'
+                withCredentials([string(credentialsId: 'ghcr-token', variable: 'REGISTRY_TOKEN')]) {
                     sh '''
                         set -e
                         set +x
-                        echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+                        # Hệ thống sử dụng trực tiếp token kết hợp với tên tài khoản của bạn để login
+                        echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "flavoriy" --password-stdin
                         set -x
+                        
                         docker push "$IMAGE_REF"
                         docker logout "$REGISTRY"
                     '''
