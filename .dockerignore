@@ -7,7 +7,20 @@ out
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
 
+# Credentials and Keys
+*.pem
+*.key
+*.pub
+gcloud-key.json
+firebase-key.json
+*credentials*
+
+# Build tools and cache
+.vercel
+.turbo
 *.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*

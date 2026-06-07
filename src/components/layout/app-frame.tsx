@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { getCurrentProfileOrRedirect } from "@/lib/auth/session";
 import { DesktopNavigation, MobileNavigation } from "@/components/layout/navigation";
 import { SignOutButton } from "@/components/layout/sign-out-button";
+import pkg from "../../../package.json";
 
 type AppFrameProps = {
   children: React.ReactNode;
@@ -42,7 +43,7 @@ function ProfileHeaderFallback() {
 
 export function AppFrame({ children }: AppFrameProps) {
   return (
-    <div className="app-shell min-h-screen px-3 py-3 md:px-5 md:py-5">
+    <div className="app-shell min-h-screen px-3 py-3 md:px-5 md:py-5 relative">
       <div className="mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-[1440px] gap-4 md:grid-cols-[240px_1fr]">
         <DesktopNavigation />
 
@@ -55,6 +56,19 @@ export function AppFrame({ children }: AppFrameProps) {
         </div>
       </div>
       <MobileNavigation />
+
+      {/* Floating App Version Badge */}
+      <div className="fixed bottom-6 right-6 z-50 hidden md:block">
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-white/80 backdrop-blur-md px-4 py-2.5 shadow-lg select-none hover:scale-105 transition-transform duration-200 cursor-default">
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75"></span>
+            <span className="relative inline-flex size-2 rounded-full bg-accent"></span>
+          </span>
+          <span className="text-[14px] font-extrabold tracking-tight text-foreground">
+            v{pkg.version}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

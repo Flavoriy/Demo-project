@@ -30,6 +30,10 @@ function envStatus(names: readonly string[]) {
   );
 }
 
+function trimBase64Padding(str: string): string {
+  return str.endsWith("==") ? str.slice(0, -2) : str.endsWith("=") ? str.slice(0, -1) : str;
+}
+
 function encryptionKeyStatus() {
   const raw = process.env.TOKEN_ENCRYPTION_KEY;
   if (!raw) {
@@ -40,7 +44,7 @@ function encryptionKeyStatus() {
     const bytes = Buffer.from(raw, "base64");
     return {
       configured: true,
-      validBase64: bytes.toString("base64").replace(/=+$/, "") === raw.replace(/=+$/, ""),
+      validBase64: trimBase64Padding(bytes.toString("base64")) === trimBase64Padding(raw),
       byteLength: bytes.length,
       validLength: bytes.length === 32,
     };

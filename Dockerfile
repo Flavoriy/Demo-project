@@ -41,8 +41,8 @@ COPY next.config.ts ./next.config.ts
 RUN npm ci --omit=dev --ignore-scripts \
     && npm cache clean --force
 
-COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs --chmod=555 /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs --chmod=555 /app/node_modules/.prisma ./node_modules/.prisma
 
 USER nextjs
 
