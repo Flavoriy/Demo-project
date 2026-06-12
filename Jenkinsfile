@@ -1,7 +1,5 @@
 @Library('jenkins-share-lib@main') _
 
-def image = [:]
-
 pipeline {
     agent {
         label 'jenkins-agent'
