@@ -88,13 +88,13 @@ runs:
         if [ "${deploy_branch_build}" = "true" ]; then
           deploy_env="$(
             BRANCH_NAME="${branch_name}" BRANCH_ENVIRONMENTS_JSON="${BRANCH_ENVIRONMENTS_JSON}" python3 - <<'PY'
-import json
-import os
+        import json
+        import os
 
-branch = os.environ["BRANCH_NAME"]
-mapping = json.loads(os.environ["BRANCH_ENVIRONMENTS_JSON"])
-print(mapping.get(branch, branch))
-PY
+        branch = os.environ["BRANCH_NAME"]
+        mapping = json.loads(os.environ["BRANCH_ENVIRONMENTS_JSON"])
+        print(mapping.get(branch, branch))
+        PY
           )"
           manifest_file="$(printf "${GITOPS_MANIFEST_PATTERN}" "${deploy_env}")"
           argocd_app_name="$(printf "${ARGOCD_APP_PATTERN}" "${deploy_env}")"
