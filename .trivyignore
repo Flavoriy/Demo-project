@@ -1,0 +1,2 @@
+# Ignore Picomatch Extglob Regular Expression Denial of Service (ReDoS) vulnerability
+CVE-2026-33671
