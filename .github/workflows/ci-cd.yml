@@ -5,10 +5,22 @@ on:
     branches:
       - main
       - dev
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'supabase/**'
+      - 'gitops-manifest/**'
   push:
     branches:
       - main
       - dev
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'supabase/**'
+      - 'gitops-manifest/**'
   workflow_dispatch:
 
 permissions:
