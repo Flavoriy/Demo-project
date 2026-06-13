@@ -20,7 +20,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_REPOSITORY: ghcr.io/flavoriy/tikto
   DOCKERFILE: Dockerfile
-  DOCKER_CONTEXT: .
+  DOCKER_BUILD_CONTEXT: .
   GITOPS_REPO_URL: https://github.com/Flavoriy/gitops-manifest.git
   GITOPS_BRANCH: main
 
@@ -77,7 +77,7 @@ jobs:
             --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY \
             -f "${DOCKERFILE}" \
             -t "${IMAGE_REF}" \
-            "${DOCKER_CONTEXT}"
+            "${DOCKER_BUILD_CONTEXT}"
 
       - name: Trivy Image Scan
         uses: aquasecurity/trivy-action@v0.36.0
