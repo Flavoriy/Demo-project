@@ -1,0 +1,51 @@
+name: AWS Secret Env
+description: Load a JSON secret from AWS Secrets Manager into GitHub Actions env.
+inputs:
+  secret-id:
+    description: AWS Secrets Manager secret id/name.
+    required: true
+  region:
+    description: AWS region.
+    required: false
+    default: ap-southeast-1
+runs:
+  using: composite
+  steps:
+    - name: Export secret values
+      shell: bash
+      env:
+        AWS_SECRET_ID: ${{ inputs.secret-id }}
+        AWS_SECRET_REGION: ${{ inputs.region }}
+      run: |
+        set -euo pipefail
+        set +x
+
+        if [ -z "${AWS_SECRET_ID}" ]; then
+          echo "No secret id provided; skip loading AWS secret."
+          exit 0
+        fi
+
+        command -v aws >/dev/null
+        command -v jq >/dev/null
+
+        secret_json="$(
+          aws secretsmanager get-secret-value \
+            --region "${AWS_SECRET_REGION}" \
+            --secret-id "${AWS_SECRET_ID}" \
+            --query SecretString \
+            --output text
+        )"
+
+        printf '%s' "${secret_json}" \
+          | jq -r 'if type == "string" then fromjson else . end | to_entries[] | @base64' \
+          | while IFS= read -r row; do
+              key="$(printf '%s' "${row}" | base64 -d | jq -r '.key')"
+              value="$(printf '%s' "${row}" | base64 -d | jq -r '.value | tostring')"
+
+              echo "::add-mask::${value}"
+              {
+                echo "${key}<<__${key}_EOF__"
+                printf '%s\n' "${value}"
+                echo "__${key}_EOF__"
+              } >> "${GITHUB_ENV}"
+            done

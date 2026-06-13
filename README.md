@@ -76,6 +76,43 @@ npm run typecheck
 npm run build
 ```
 
+## GitHub Actions CI/CD
+
+Workflow entrypoint: `.github/workflows/ci-cd.yml`.
+
+The entrypoint stays small and calls reusable workflow files:
+
+- `.github/workflows/ci.yaml`
+- `.github/workflows/cd.yaml`
+
+Reusable step logic lives in local composite actions under `.github/actions/`.
+
+Flow:
+
+1. Pull requests into `dev` or `main` run the `CI` job only: install, lint, typecheck, unit tests, build, and SonarQube Cloud.
+2. The PR job uses GitHub's `pull_request` merge ref, so tests run against the merged result, not only the source branch.
+3. The SonarQube Cloud step uses `sonar.qualitygate.wait=true`, so the `CI` job fails if the Quality Gate fails.
+4. Push/merge into `dev` runs `CI` first, then `Deploy Dev` automatically.
+5. Push/merge into `main` runs `CI` first, then `Deploy Prod`. `Deploy Prod` references the `prod` GitHub Environment and should be protected with required reviewers.
+
+For branch deployments, configure repository secret:
+
+- `AWS_ROLE_TO_ASSUME`: IAM role ARN that GitHub Actions can assume with OIDC.
+
+The workflow reads these AWS Secrets Manager secrets in `ap-southeast-1`:
+
+- `tikto/shared`
+- `tikto/dev`
+- `tikto/prod`
+
+The IAM role needs `secretsmanager:GetSecretValue` for those secrets. The shared secret should contain values such as `SONAR_TOKEN`, `GHCR_USERNAME`, `GHCR_TOKEN`, `GITOPS_USERNAME`, `GITOPS_TOKEN`, `ARGOCD_SERVER`, and `ARGOCD_TOKEN`.
+
+Required GitHub settings:
+
+- Branch protection for `dev` and `main`: require the `CI` status check before merge.
+- Environment `dev`: no required reviewers.
+- Environment `prod`: add required reviewers to approve production deployment.
+
 ## Current Scope
 
 Implemented now:

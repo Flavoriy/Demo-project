@@ -1,0 +1,79 @@
+name: Update GitOps Manifest
+description: Clone a GitOps repo, update an image reference, commit, and push.
+inputs:
+  repo-url:
+    required: true
+    description: HTTPS GitOps repo URL.
+  branch:
+    required: false
+    default: main
+    description: GitOps branch.
+  manifest-file:
+    required: true
+    description: Manifest file to update inside the GitOps repo.
+  image-ref:
+    required: true
+    description: New image reference.
+  image-repository:
+    required: true
+    description: Image repository prefix to replace.
+  git-username:
+    required: false
+    default: x-access-token
+    description: Git username for HTTPS token push.
+  git-token:
+    required: false
+    default: ''
+    description: Token allowed to push to the GitOps repo.
+  commit-message:
+    required: true
+    description: Commit message.
+runs:
+  using: composite
+  steps:
+    - name: Update manifest
+      shell: bash
+      env:
+        GITOPS_REPO_URL: ${{ inputs.repo-url }}
+        GITOPS_BRANCH: ${{ inputs.branch }}
+        GITOPS_MANIFEST_FILE: ${{ inputs.manifest-file }}
+        IMAGE_REF: ${{ inputs.image-ref }}
+        IMAGE_REPOSITORY: ${{ inputs.image-repository }}
+        GIT_USERNAME_INPUT: ${{ inputs.git-username }}
+        GIT_TOKEN_INPUT: ${{ inputs.git-token }}
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+      run: |
+        set -euo pipefail
+        set +x
+
+        git_username="${GIT_USERNAME_INPUT:-${GITOPS_USERNAME:-x-access-token}}"
+        git_token="${GIT_TOKEN_INPUT:-${GITOPS_TOKEN:-${GITHUB_TOKEN:-}}}"
+
+        if [ -z "${git_token}" ]; then
+          echo "::error::GITOPS_TOKEN is required to update the GitOps repo."
+          exit 1
+        fi
+
+        echo "::add-mask::${git_token}"
+
+        workdir="$(mktemp -d)"
+        remote_path="${GITOPS_REPO_URL#https://}"
+
+        git clone --depth=1 --branch "${GITOPS_BRANCH}" "https://${git_username}:${git_token}@${remote_path}" "${workdir}"
+        cd "${workdir}"
+
+        test -f "${GITOPS_MANIFEST_FILE}"
+        sed -i "s#image: ${IMAGE_REPOSITORY}.*#image: ${IMAGE_REF}#g" "${GITOPS_MANIFEST_FILE}"
+        grep -n "${IMAGE_REF}" "${GITOPS_MANIFEST_FILE}"
+
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git add "${GITOPS_MANIFEST_FILE}"
+
+        if git diff --cached --quiet; then
+          echo "GitOps manifest unchanged."
+          exit 0
+        fi
+
+        git commit -m "${COMMIT_MESSAGE}"
+        git push origin "HEAD:${GITOPS_BRANCH}"

@@ -1,0 +1,114 @@
+name: TikTo Build Context
+description: Resolve whether a TikTo build should run and which environment it deploys to.
+inputs:
+  deploy-branches:
+    description: Space-separated deploy branches.
+    required: false
+    default: main dev
+  branch-environments-json:
+    description: JSON map from branch name to deploy environment.
+    required: false
+    default: '{"main":"prod","dev":"dev"}'
+  gitops-manifest-pattern:
+    description: Python printf-style pattern for the GitOps image patch file.
+    required: false
+    default: apps/tikto/overlays/%s/patch-image.yaml
+  argocd-app-pattern:
+    description: Python printf-style pattern for the ArgoCD app name.
+    required: false
+    default: tikto-%s
+outputs:
+  should-run:
+    value: ${{ steps.context.outputs.should-run }}
+  supported-pr:
+    value: ${{ steps.context.outputs.supported-pr }}
+  deploy-branch-build:
+    value: ${{ steps.context.outputs.deploy-branch-build }}
+  branch-name:
+    value: ${{ steps.context.outputs.branch-name }}
+  change-target:
+    value: ${{ steps.context.outputs.change-target }}
+  deploy-env:
+    value: ${{ steps.context.outputs.deploy-env }}
+  manifest-file:
+    value: ${{ steps.context.outputs.manifest-file }}
+  argocd-app-name:
+    value: ${{ steps.context.outputs.argocd-app-name }}
+runs:
+  using: composite
+  steps:
+    - id: context
+      name: Resolve context
+      shell: bash
+      env:
+        DEPLOY_BRANCHES: ${{ inputs.deploy-branches }}
+        BRANCH_ENVIRONMENTS_JSON: ${{ inputs.branch-environments-json }}
+        GITOPS_MANIFEST_PATTERN: ${{ inputs.gitops-manifest-pattern }}
+        ARGOCD_APP_PATTERN: ${{ inputs.argocd-app-pattern }}
+      run: |
+        set -euo pipefail
+
+        branch_name="${GITHUB_REF_NAME:-}"
+        change_target=""
+
+        if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+          branch_name="${GITHUB_HEAD_REF:-${branch_name}}"
+          change_target="${GITHUB_BASE_REF:-}"
+        fi
+
+        branch_name="${branch_name#origin/}"
+        change_target="${change_target#origin/}"
+
+        contains_branch() {
+          local wanted="$1"
+          for branch in ${DEPLOY_BRANCHES}; do
+            [ "${branch}" = "${wanted}" ] && return 0
+          done
+          return 1
+        }
+
+        supported_pr=false
+        deploy_branch_build=false
+        should_run=false
+
+        if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] && contains_branch "${change_target}"; then
+          supported_pr=true
+          should_run=true
+        fi
+
+        if [ "${GITHUB_EVENT_NAME}" != "pull_request" ] && contains_branch "${branch_name}"; then
+          deploy_branch_build=true
+          should_run=true
+        fi
+
+        deploy_env=""
+        manifest_file=""
+        argocd_app_name=""
+
+        if [ "${deploy_branch_build}" = "true" ]; then
+          deploy_env="$(
+            BRANCH_NAME="${branch_name}" BRANCH_ENVIRONMENTS_JSON="${BRANCH_ENVIRONMENTS_JSON}" python3 - <<'PY'
+import json
+import os
+
+branch = os.environ["BRANCH_NAME"]
+mapping = json.loads(os.environ["BRANCH_ENVIRONMENTS_JSON"])
+print(mapping.get(branch, branch))
+PY
+          )"
+          manifest_file="$(printf "${GITOPS_MANIFEST_PATTERN}" "${deploy_env}")"
+          argocd_app_name="$(printf "${ARGOCD_APP_PATTERN}" "${deploy_env}")"
+        fi
+
+        {
+          echo "should-run=${should_run}"
+          echo "supported-pr=${supported_pr}"
+          echo "deploy-branch-build=${deploy_branch_build}"
+          echo "branch-name=${branch_name}"
+          echo "change-target=${change_target}"
+          echo "deploy-env=${deploy_env}"
+          echo "manifest-file=${manifest_file}"
+          echo "argocd-app-name=${argocd_app_name}"
+        } >> "${GITHUB_OUTPUT}"
+
+        echo "should_run=${should_run}, branch=${branch_name}, target=${change_target}, deploy_env=${deploy_env}"

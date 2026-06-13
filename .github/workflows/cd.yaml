@@ -1,0 +1,119 @@
+name: TikTo Reusable Deploy
+
+on:
+  workflow_call:
+    inputs:
+      deploy-env:
+        description: Target deploy environment, for example dev or prod.
+        required: true
+        type: string
+      environment-name:
+        description: GitHub Environment name used for deployment protection.
+        required: true
+        type: string
+
+env:
+  AWS_REGION: ap-southeast-1
+  AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+  AWS_SHARED_SECRET_ID: tikto/shared
+  AWS_APP_SECRET_PREFIX: tikto
+  REGISTRY: ghcr.io
+  IMAGE_REPOSITORY: ghcr.io/flavoriy/tikto
+  DOCKERFILE: Dockerfile
+  DOCKER_CONTEXT: .
+  GITOPS_REPO_URL: https://github.com/Flavoriy/gitops-manifest.git
+  GITOPS_BRANCH: main
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.deploy-env }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment-name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare Pipeline
+        id: context
+        uses: ./.github/actions/build-context
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load Shared Secret
+        uses: ./.github/actions/load-aws-secrets
+        with:
+          secret-id: ${{ env.AWS_SHARED_SECRET_ID }}
+          region: ${{ env.AWS_REGION }}
+
+      - name: Load App Secret
+        uses: ./.github/actions/load-aws-secrets
+        with:
+          secret-id: ${{ env.AWS_APP_SECRET_PREFIX }}/${{ inputs.deploy-env }}
+          region: ${{ env.AWS_REGION }}
+
+      - name: Prepare Docker Image
+        id: image
+        uses: ./.github/actions/docker-image-tags
+        with:
+          image-repository: ${{ env.IMAGE_REPOSITORY }}
+
+      - name: Docker Build
+        run: |
+          docker build \
+            --build-arg DATABASE_URL \
+            --build-arg NEXT_PUBLIC_APP_URL \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY \
+            -f "${DOCKERFILE}" \
+            -t "${IMAGE_REF}" \
+            "${DOCKER_CONTEXT}"
+
+      - name: Trivy Image Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.image.outputs.image-ref }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: '1'
+
+      - name: Docker Push GHCR
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          set +x
+
+          registry_username="${GHCR_USERNAME:-${GITHUB_ACTOR}}"
+          registry_token="${GHCR_TOKEN:-${GITHUB_TOKEN}}"
+
+          echo "::add-mask::${registry_token}"
+          echo "${registry_token}" | docker login "${REGISTRY}" -u "${registry_username}" --password-stdin
+          docker push "${IMAGE_REF}"
+          docker logout "${REGISTRY}"
+
+      - name: Update GitOps Manifest
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        uses: ./.github/actions/update-gitops
+        with:
+          repo-url: ${{ env.GITOPS_REPO_URL }}
+          branch: ${{ env.GITOPS_BRANCH }}
+          manifest-file: ${{ steps.context.outputs.manifest-file }}
+          image-ref: ${{ steps.image.outputs.image-ref }}
+          image-repository: ${{ env.IMAGE_REPOSITORY }}
+          commit-message: "chore(${{ inputs.deploy-env }}): deploy ${{ steps.image.outputs.image-ref }}"
+
+      - name: Verify ArgoCD
+        uses: ./.github/actions/verify-argocd
+        with:
+          app-name: ${{ steps.context.outputs.argocd-app-name }}
+          image-ref: ${{ steps.image.outputs.image-ref }}

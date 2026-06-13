@@ -1,0 +1,83 @@
+name: Prepare Docker Image Refs
+description: Resolve Docker image tags and expose IMAGE_REF for later steps.
+inputs:
+  image-repository:
+    description: Docker image repository.
+    required: true
+  image-tag:
+    description: Optional explicit image tag.
+    required: false
+    default: ''
+  image-version-prefix:
+    description: Optional version prefix, for example 1.0.
+    required: false
+    default: ''
+  extra-tags:
+    description: Space-separated extra tags, for example "latest stable".
+    required: false
+    default: ''
+outputs:
+  image-ref:
+    description: Main image ref.
+    value: ${{ steps.refs.outputs.image-ref }}
+  image-tag:
+    description: Main image tag.
+    value: ${{ steps.refs.outputs.image-tag }}
+  additional-image-refs:
+    description: Newline-separated additional image refs.
+    value: ${{ steps.refs.outputs.additional-image-refs }}
+runs:
+  using: composite
+  steps:
+    - id: refs
+      name: Resolve refs
+      shell: bash
+      env:
+        IMAGE_REPOSITORY_INPUT: ${{ inputs.image-repository }}
+        IMAGE_TAG_INPUT: ${{ inputs.image-tag }}
+        IMAGE_VERSION_PREFIX_INPUT: ${{ inputs.image-version-prefix }}
+        EXTRA_TAGS_INPUT: ${{ inputs.extra-tags }}
+      run: |
+        set -euo pipefail
+
+        sanitize_tag() {
+          printf '%s' "$1" | sed -E 's#^origin/##; s#[^A-Za-z0-9_.-]#-#g' | cut -c1-128
+        }
+
+        image_repository="${IMAGE_REPOSITORY_INPUT}"
+        image_tag="${IMAGE_TAG_INPUT}"
+
+        if [ -z "${image_tag}" ]; then
+          if [ -n "${IMAGE_VERSION_PREFIX_INPUT}" ]; then
+            image_tag="${IMAGE_VERSION_PREFIX_INPUT}.${GITHUB_RUN_NUMBER}"
+          else
+            short_sha="${GITHUB_SHA:0:12}"
+            image_tag="$(sanitize_tag "${GITHUB_REF_NAME}-${short_sha}-${GITHUB_RUN_NUMBER}")"
+          fi
+        fi
+
+        image_ref="${image_repository}:${image_tag}"
+
+        additional_refs=()
+        for tag in ${EXTRA_TAGS_INPUT}; do
+          [ -n "${tag}" ] && additional_refs+=("${image_repository}:${tag}")
+        done
+
+        {
+          echo "IMAGE_REPOSITORY=${image_repository}"
+          echo "IMAGE_TAG=${image_tag}"
+          echo "IMAGE_REF=${image_ref}"
+        } >> "${GITHUB_ENV}"
+
+        echo "image-ref=${image_ref}" >> "${GITHUB_OUTPUT}"
+        echo "image-tag=${image_tag}" >> "${GITHUB_OUTPUT}"
+        {
+          echo "additional-image-refs<<EOF"
+          printf '%s\n' "${additional_refs[@]}"
+          echo "EOF"
+        } >> "${GITHUB_OUTPUT}"
+
+        echo "Docker image target ref: ${image_ref}"
+        for ref in "${additional_refs[@]}"; do
+          echo "Docker image extra ref: ${ref}"
+        done

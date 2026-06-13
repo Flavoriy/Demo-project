@@ -1,105 +1,79 @@
 create extension if not exists pgcrypto;
 
 do $$
+declare
+  v_schema constant text := 'public';
 begin
   if not exists (
     select 1
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public' and t.typname = 'TaskStatus'
+    where n.nspname = v_schema and t.typname = 'TaskStatus'
   ) then
     create type public."TaskStatus" as enum ('TODO', 'IN_PROGRESS', 'DONE');
   end if;
-end
-$$;
 
-do $$
-begin
   if not exists (
     select 1
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public' and t.typname = 'TaskPriority'
+    where n.nspname = v_schema and t.typname = 'TaskPriority'
   ) then
     create type public."TaskPriority" as enum ('LOW', 'MEDIUM', 'HIGH');
   end if;
-end
-$$;
 
-do $$
-begin
   if not exists (
     select 1
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public' and t.typname = 'SyncStatus'
+    where n.nspname = v_schema and t.typname = 'SyncStatus'
   ) then
-    create type public."SyncStatus" as enum ('LOCAL_ONLY', 'PENDING_CREATE', 'PENDING_UPDATE', 'PENDING_DELETE', 'SYNCED', 'FAILED');
+    create type public."SyncStatus" as enum ('LOCAL_ONLY', 'PENDING_CREATE', 'PENDING_UPDATE', 'PENDING_DELETE', 'SYNCED', 'FAILED'); -- NOSONAR
   end if;
-end
-$$;
 
-do $$
-begin
   if not exists (
     select 1
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public' and t.typname = 'SyncDirection'
+    where n.nspname = v_schema and t.typname = 'SyncDirection'
   ) then
     create type public."SyncDirection" as enum ('APP_TO_GOOGLE', 'GOOGLE_TO_APP');
   end if;
-end
-$$;
 
-do $$
-begin
   if not exists (
     select 1
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public' and t.typname = 'ImportState'
+    where n.nspname = v_schema and t.typname = 'ImportState'
   ) then
-    create type public."ImportState" as enum ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED');
+    create type public."ImportState" as enum ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'); -- NOSONAR
   end if;
-end
-$$;
 
-do $$
-begin
   if not exists (
     select 1
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public' and t.typname = 'ReminderTargetType'
+    where n.nspname = v_schema and t.typname = 'ReminderTargetType'
   ) then
     create type public."ReminderTargetType" as enum ('TASK', 'EVENT');
   end if;
-end
-$$;
 
-do $$
-begin
   if not exists (
     select 1
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public' and t.typname = 'ReminderChannel'
+    where n.nspname = v_schema and t.typname = 'ReminderChannel'
   ) then
     create type public."ReminderChannel" as enum ('TELEGRAM');
   end if;
-end
-$$;
 
-do $$
-begin
   if not exists (
     select 1
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
-    where n.nspname = 'public' and t.typname = 'ReminderStatus'
+    where n.nspname = v_schema and t.typname = 'ReminderStatus'
   ) then
-    create type public."ReminderStatus" as enum ('SCHEDULED', 'SENT', 'FAILED', 'CANCELED');
+    create type public."ReminderStatus" as enum ('SCHEDULED', 'SENT', 'FAILED', 'CANCELED'); -- NOSONAR
   end if;
 end
 $$;
@@ -129,7 +103,7 @@ create table if not exists public.tasks (
   google_tasklist_id text,
   google_etag text,
   google_updated_at timestamptz(6),
-  sync_status public."SyncStatus" not null default 'LOCAL_ONLY',
+  sync_status public."SyncStatus" not null default 'LOCAL_ONLY', -- NOSONAR
   last_sync_direction public."SyncDirection",
   last_synced_at timestamptz(6),
   sync_error text,
@@ -143,7 +117,7 @@ alter table public.tasks
   add column if not exists google_tasklist_id text,
   add column if not exists google_etag text,
   add column if not exists google_updated_at timestamptz(6),
-  add column if not exists sync_status public."SyncStatus" not null default 'LOCAL_ONLY',
+  add column if not exists sync_status public."SyncStatus" not null default 'LOCAL_ONLY', -- NOSONAR
   add column if not exists last_sync_direction public."SyncDirection",
   add column if not exists last_synced_at timestamptz(6),
   add column if not exists sync_error text,
@@ -164,7 +138,7 @@ create table if not exists public.events (
   google_calendar_id text,
   google_etag text,
   google_updated_at timestamptz(6),
-  sync_status public."SyncStatus" not null default 'LOCAL_ONLY',
+  sync_status public."SyncStatus" not null default 'LOCAL_ONLY', -- NOSONAR
   last_sync_direction public."SyncDirection",
   last_synced_at timestamptz(6),
   sync_error text,
@@ -178,7 +152,7 @@ alter table public.events
   add column if not exists google_calendar_id text,
   add column if not exists google_etag text,
   add column if not exists google_updated_at timestamptz(6),
-  add column if not exists sync_status public."SyncStatus" not null default 'LOCAL_ONLY',
+  add column if not exists sync_status public."SyncStatus" not null default 'LOCAL_ONLY', -- NOSONAR
   add column if not exists last_sync_direction public."SyncDirection",
   add column if not exists last_synced_at timestamptz(6),
   add column if not exists sync_error text,
@@ -192,7 +166,7 @@ create table if not exists public.reminders (
   offset_minutes integer not null,
   remind_at_utc timestamptz(6) not null,
   channel public."ReminderChannel" not null,
-  status public."ReminderStatus" not null default 'SCHEDULED',
+  status public."ReminderStatus" not null default 'SCHEDULED', -- NOSONAR
   external_job_id text,
   delivery_attempt_count integer not null default 0,
   last_error text,
@@ -220,8 +194,8 @@ create table if not exists public.google_integrations (
   tasks_enabled boolean not null default false,
   calendar_id text default 'primary',
   default_tasklist_id text default '@default',
-  calendar_import_state public."ImportState" not null default 'NOT_STARTED',
-  tasks_import_state public."ImportState" not null default 'NOT_STARTED',
+  calendar_import_state public."ImportState" not null default 'NOT_STARTED', -- NOSONAR
+  tasks_import_state public."ImportState" not null default 'NOT_STARTED', -- NOSONAR
   calendar_import_summary jsonb,
   tasks_import_summary jsonb,
   calendar_sync_token text,

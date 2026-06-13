@@ -17,6 +17,21 @@ type GoogleSettingsCardProps = {
   errorParam: string | null;
 };
 
+function getOAuthErrorMessage(errorParam: string): string {
+  switch (errorParam) {
+    case "invalid_state":
+      return "OAuth state mismatch — please try again.";
+    case "missing_code":
+      return "No authorization code received from Google.";
+    case "no_refresh_token":
+      return "Google did not return a refresh token. Sign out and sign back in to fix this.";
+    case "token_exchange_failed":
+      return "Could not exchange the authorization code. Please try again.";
+    default:
+      return `Google OAuth error: ${errorParam}`;
+  }
+}
+
 export function GoogleSettingsCard({ integration, errorParam }: GoogleSettingsCardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -81,12 +96,7 @@ export function GoogleSettingsCard({ integration, errorParam }: GoogleSettingsCa
 
       {errorParam && (
         <div className="mt-4 rounded-[12px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {errorParam === "invalid_state" && "OAuth state mismatch — please try again."}
-          {errorParam === "missing_code" && "No authorization code received from Google."}
-          {errorParam === "no_refresh_token" && "Google did not return a refresh token. Sign out and sign back in to fix this."}
-          {errorParam === "token_exchange_failed" && "Could not exchange the authorization code. Please try again."}
-          {!["invalid_state", "missing_code", "no_refresh_token", "token_exchange_failed"].includes(errorParam) &&
-            `Google OAuth error: ${errorParam}`}
+          {getOAuthErrorMessage(errorParam)}
         </div>
       )}
 
