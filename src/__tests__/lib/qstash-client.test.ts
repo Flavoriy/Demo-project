@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const qstashMocks = vi.hoisted(() => {
   const publishJSON = vi.fn();
   const cancel = vi.fn();
-  const Client = vi.fn(() => ({
-    publishJSON,
-    messages: {
-      cancel,
-    },
-  }));
+  const Client = vi.fn().mockImplementation(function () {
+    return {
+      publishJSON,
+      messages: {
+        cancel,
+      },
+    };
+  });
 
   return {
     Client,

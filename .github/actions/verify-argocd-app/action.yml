@@ -1,0 +1,74 @@
+name: Verify ArgoCD App
+description: Wait for an ArgoCD app to become synced and healthy.
+inputs:
+  app-name:
+    required: true
+    description: ArgoCD app name.
+  server:
+    required: false
+    default: ''
+    description: ArgoCD server.
+  auth-token:
+    required: false
+    default: ''
+    description: ArgoCD auth token.
+  image-ref:
+    required: false
+    default: ''
+    description: Image ref to verify in rendered manifests.
+  insecure:
+    required: false
+    default: 'false'
+    description: Pass --insecure to argocd.
+  timeout-seconds:
+    required: false
+    default: '300'
+    description: Wait timeout in seconds.
+runs:
+  using: composite
+  steps:
+    - name: Verify app
+      shell: bash
+      env:
+        ARGOCD_APP_NAME: ${{ inputs.app-name }}
+        ARGOCD_SERVER_INPUT: ${{ inputs.server }}
+        ARGOCD_AUTH_TOKEN_INPUT: ${{ inputs.auth-token }}
+        IMAGE_REF: ${{ inputs.image-ref }}
+        ARGOCD_INSECURE: ${{ inputs.insecure }}
+        ARGOCD_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+      run: |
+        set -euo pipefail
+        set +x
+
+        argocd_server="${ARGOCD_SERVER_INPUT:-${ARGOCD_SERVER:-}}"
+        argocd_token="${ARGOCD_AUTH_TOKEN_INPUT:-${ARGOCD_TOKEN:-${ARGOCD_AUTH_TOKEN:-}}}"
+
+        if [ -z "${argocd_server}" ]; then
+          echo "Skip ArgoCD verify: ARGOCD_SERVER is not configured."
+          exit 0
+        fi
+
+        if [ -n "${argocd_token}" ]; then
+          echo "::add-mask::${argocd_token}"
+        fi
+
+        if ! command -v argocd >/dev/null 2>&1; then
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd /usr/local/bin/argocd
+          rm -f argocd
+        fi
+
+        args=(--server "${argocd_server}" --grpc-web)
+        if [ -n "${argocd_token}" ]; then
+          args+=(--auth-token "${argocd_token}")
+        fi
+        if [ "${ARGOCD_INSECURE}" = "true" ]; then
+          args+=(--insecure)
+        fi
+
+        argocd app get "${ARGOCD_APP_NAME}" "${args[@]}" --refresh
+        argocd app wait "${ARGOCD_APP_NAME}" "${args[@]}" --health --sync --timeout "${ARGOCD_TIMEOUT_SECONDS}"
+
+        if [ -n "${IMAGE_REF}" ]; then
+          argocd app manifests "${ARGOCD_APP_NAME}" "${args[@]}" | grep -F "${IMAGE_REF}"
+        fi

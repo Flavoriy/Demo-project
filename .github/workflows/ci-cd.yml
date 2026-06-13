@@ -1,0 +1,54 @@
+name: TikTo CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+
+  deploy-dev:
+    name: Deploy Dev
+    needs: ci
+    if: github.event_name != 'pull_request' && github.ref_name == 'dev'
+    uses: ./.github/workflows/cd.yaml
+    with:
+      deploy-env: dev
+      environment-name: dev
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+  deploy-prod:
+    name: Deploy Prod
+    needs: ci
+    if: github.event_name != 'pull_request' && github.ref_name == 'main'
+    uses: ./.github/workflows/cd.yaml
+    with:
+      deploy-env: prod
+      environment-name: prod
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
