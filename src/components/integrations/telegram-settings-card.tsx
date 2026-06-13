@@ -162,6 +162,100 @@ interface StepParams {
   missingDeliveryEnv: string[];
 }
 
+function getStep1Info(
+  botConfigured: boolean,
+  botVerified: boolean,
+  status: TelegramStatus | null,
+  trimmedBotToken: boolean
+): { state: SetupState; detail: string } {
+  let state: SetupState = "current";
+  if (botConfigured) {
+    if (status && !botVerified) {
+      state = "warning";
+    } else if (botVerified) {
+      state = "done";
+    }
+  }
+
+  let detail = "Paste this user's bot token below. It will be encrypted before it is saved.";
+  if (botConfigured) {
+    if (botVerified) {
+      const botUsernamePart = status?.botUsername ? ` (${status.botUsername})` : "";
+      detail = `${status?.botDisplayName ?? "Telegram bot"}${botUsernamePart} is reachable.`;
+    } else if (trimmedBotToken) {
+      detail = "A new token is entered. Save Telegram, then run Check status.";
+    } else {
+      detail = "A bot token is saved. Run Check status to verify it.";
+    }
+  }
+
+  return { state, detail };
+}
+
+function getStep2Info(
+  botConfigured: boolean,
+  chatVerified: boolean,
+  status: TelegramStatus | null,
+  trimmedChatId: boolean
+): { state: SetupState; detail: string } {
+  let state: SetupState = "blocked";
+  if (botConfigured) {
+    if (chatVerified) {
+      state = "done";
+    } else if (status?.chatReachable === false) {
+      state = "warning";
+    } else if (trimmedChatId) {
+      state = "current";
+    }
+  }
+
+  let detail = "Message the bot first, then paste the chat.id where reminders should land.";
+  if (chatVerified) {
+    detail = `${status?.chatDisplayName ?? "Saved chat"} can receive bot messages.`;
+  } else if (trimmedChatId) {
+    detail = "A Chat ID is filled in. Save, then Check status to confirm the bot can see it.";
+  }
+
+  return { state, detail };
+}
+
+function getStep3Info(
+  deliveryInfrastructureReady: boolean,
+  botConfigured: boolean,
+  missingDeliveryEnv: string[]
+): { state: SetupState; detail: string } {
+  let state: SetupState = "blocked";
+  if (deliveryInfrastructureReady) {
+    state = "done";
+  } else if (botConfigured) {
+    state = "current";
+  }
+
+  const detail = deliveryInfrastructureReady
+    ? "QStash and the public app URL are configured for scheduled reminders."
+    : `Missing ${missingDeliveryEnv.join(", ") || "delivery settings"} in the server environment.`;
+
+  return { state, detail };
+}
+
+function getStep4Info(
+  readyForReminders: boolean,
+  status: TelegramStatus | null
+): { state: SetupState; detail: string } {
+  let state: SetupState = "blocked";
+  if (readyForReminders) {
+    state = "done";
+  } else if (status) {
+    state = "current";
+  }
+
+  const detail = readyForReminders
+    ? "Telegram reminders are ready for this user."
+    : "Save the bot token and chat, keep reminders enabled, then run Check status.";
+
+  return { state, detail };
+}
+
 function getSetupSteps({
   botConfigured,
   botVerified,
@@ -173,54 +267,17 @@ function getSetupSteps({
   trimmedChatId,
   missingDeliveryEnv,
 }: StepParams): SetupStep[] {
-  let step1State: SetupState = "current";
-  if (botConfigured) {
-    step1State = status && !botVerified ? "warning" : botVerified ? "done" : "current";
-  }
-  let step1Detail = "Paste this user's bot token below. It will be encrypted before it is saved.";
-  if (botConfigured) {
-    if (botVerified) {
-      step1Detail = `${status?.botDisplayName ?? "Telegram bot"}${status?.botUsername ? ` (${status.botUsername})` : ""} is reachable.`;
-    } else if (trimmedBotToken) {
-      step1Detail = "A new token is entered. Save Telegram, then run Check status.";
-    } else {
-      step1Detail = "A bot token is saved. Run Check status to verify it.";
-    }
-  }
-
-  let step2State: SetupState = "blocked";
-  if (botConfigured) {
-    if (chatVerified) {
-      step2State = "done";
-    } else if (status?.chatReachable === false) {
-      step2State = "warning";
-    } else if (trimmedChatId) {
-      step2State = "current";
-    }
-  }
-  let step2Detail = "Message the bot first, then paste the chat.id where reminders should land.";
-  if (chatVerified) {
-    step2Detail = `${status?.chatDisplayName ?? "Saved chat"} can receive bot messages.`;
-  } else if (trimmedChatId) {
-    step2Detail = "A Chat ID is filled in. Save, then Check status to confirm the bot can see it.";
-  }
-
-  const step3State = deliveryInfrastructureReady ? "done" : botConfigured ? "current" : "blocked";
-  const step3Detail = deliveryInfrastructureReady
-    ? "QStash and the public app URL are configured for scheduled reminders."
-    : `Missing ${missingDeliveryEnv.join(", ") || "delivery settings"} in the server environment.`;
-
-  const step4State = readyForReminders ? "done" : status ? "current" : "blocked";
-  const step4Detail = readyForReminders
-    ? "Telegram reminders are ready for this user."
-    : "Save the bot token and chat, keep reminders enabled, then run Check status.";
+  const step1 = getStep1Info(botConfigured, botVerified, status, trimmedBotToken);
+  const step2 = getStep2Info(botConfigured, chatVerified, status, trimmedChatId);
+  const step3 = getStep3Info(deliveryInfrastructureReady, botConfigured, missingDeliveryEnv);
+  const step4 = getStep4Info(readyForReminders, status);
 
   return [
     {
       number: 1,
       title: "Bot token",
-      state: step1State,
-      detail: step1Detail,
+      state: step1.state,
+      detail: step1.detail,
       find: "Telegram -> @BotFather -> /newbot or /token",
       field: "Bot token",
       icon: Bot,
@@ -228,8 +285,8 @@ function getSetupSteps({
     {
       number: 2,
       title: "Chat target",
-      state: step2State,
-      detail: step2Detail,
+      state: step2.state,
+      detail: step2.detail,
       find: "Send /start to the bot, then call getUpdates and use result.message.chat.id",
       field: "Chat ID",
       icon: MessageCircle,
@@ -237,8 +294,8 @@ function getSetupSteps({
     {
       number: 3,
       title: "Delivery queue",
-      state: step3State,
-      detail: step3Detail,
+      state: step3.state,
+      detail: step3.detail,
       find: "Vercel Environment Variables and Upstash Console -> QStash -> Tokens",
       field: "NEXT_PUBLIC_APP_URL + QSTASH_*",
       icon: Settings2,
@@ -246,8 +303,8 @@ function getSetupSteps({
     {
       number: 4,
       title: "Verify",
-      state: step4State,
-      detail: step4Detail,
+      state: step4.state,
+      detail: step4.detail,
       find: "Use the Save Telegram and Check status buttons on this card",
       field: "Save + Check status",
       icon: ShieldCheck,
@@ -277,7 +334,7 @@ function SetupHeaderSection({
   nextStepTitle,
   statusError,
   botTokenStorageReady,
-}: SetupHeaderSectionProps) {
+}: Readonly<SetupHeaderSectionProps>) {
   return (
     <div className="border-b border-border px-5 py-5 md:px-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -336,7 +393,8 @@ function getBotApiVal(botConfigured: boolean, status: TelegramStatus | null): st
 
 function getBotApiDetail(status: TelegramStatus | null, trimmedBotToken: boolean): string {
   if (status?.botDisplayName) {
-    return `${status.botDisplayName}${status.botUsername ? ` (${status.botUsername})` : ""}`;
+    const botUsernamePart = status.botUsername ? ` (${status.botUsername})` : "";
+    return `${status.botDisplayName}${botUsernamePart}`;
   }
   if (status?.botError) {
     return status.botError;
@@ -349,7 +407,10 @@ function getBotApiDetail(status: TelegramStatus | null, trimmedBotToken: boolean
 
 function getChatVal(status: TelegramStatus | null, trimmedChatId: boolean): string {
   if (status) {
-    return !status.chatConfigured ? "Missing Chat ID" : (status.chatReachable ? "Reachable" : "Needs check");
+    if (status.chatConfigured) {
+      return status.chatReachable ? "Reachable" : "Needs check";
+    }
+    return "Missing Chat ID";
   }
   return trimmedChatId ? "Filled in" : "Not configured";
 }
@@ -374,7 +435,7 @@ function StatusTileSection({
   chatVerified,
   deliveryInfrastructureReady,
   missingDeliveryEnv,
-}: StatusTileSectionProps) {
+}: Readonly<StatusTileSectionProps>) {
   const botApiVal = getBotApiVal(botConfigured, status);
   const botApiDetail = getBotApiDetail(status, trimmedBotToken);
   const chatVal = getChatVal(status, trimmedChatId);
@@ -440,17 +501,29 @@ function StatusTileSection({
   );
 }
 
-function getEffectiveStatus(
-  status: TelegramStatus | null,
-  botConfigured: boolean,
-  appUrlConfigured: boolean,
-  qstashConfigured: boolean,
-  qstashSigningConfigured: boolean,
-  deliveryInfrastructureReady: boolean,
-  integrationSaved: boolean,
-  remindersEnabled: boolean,
-  trimmedChatId: boolean
-): TelegramStatus {
+interface EffectiveStatusParams {
+  status: TelegramStatus | null;
+  botConfigured: boolean;
+  appUrlConfigured: boolean;
+  qstashConfigured: boolean;
+  qstashSigningConfigured: boolean;
+  deliveryInfrastructureReady: boolean;
+  integrationSaved: boolean;
+  remindersEnabled: boolean;
+  trimmedChatId: boolean;
+}
+
+function getEffectiveStatus({
+  status,
+  botConfigured,
+  appUrlConfigured,
+  qstashConfigured,
+  qstashSigningConfigured,
+  deliveryInfrastructureReady,
+  integrationSaved,
+  remindersEnabled,
+  trimmedChatId,
+}: Readonly<EffectiveStatusParams>): TelegramStatus {
   if (status) return status;
   return {
     botConfigured,
@@ -537,7 +610,7 @@ function DestinationForm({
   integration,
   handleDisconnect,
   isPending,
-}: DestinationFormProps) {
+}: Readonly<DestinationFormProps>) {
   return (
     <form className="border-t border-border px-5 py-5 md:px-6" onSubmit={handleSubmit}>
       <div className="flex items-center gap-2">
@@ -650,17 +723,17 @@ export function TelegramSettingsCard({
   const deliveryInfrastructureReady =
     botConfigured && appUrlConfigured && qstashConfigured && qstashSigningConfigured;
 
-  const effectiveStatus = getEffectiveStatus(
+  const effectiveStatus = getEffectiveStatus({
     status,
     botConfigured,
     appUrlConfigured,
     qstashConfigured,
     qstashSigningConfigured,
     deliveryInfrastructureReady,
-    Boolean(integration),
-    isEnabled,
-    Boolean(trimmedChatId)
-  );
+    integrationSaved: Boolean(integration),
+    remindersEnabled: isEnabled,
+    trimmedChatId: Boolean(trimmedChatId),
+  });
 
   const guidance = getGuidance(status, botConfigured, effectiveStatus);
   const botVerified = status?.botReachable === true;

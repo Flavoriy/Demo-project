@@ -58,7 +58,13 @@ interface PriorityOrderCardProps {
   nextEventTitle: string | undefined;
 }
 
-function PriorityOrderCard({ overdueTasksCount, openTodayTasksCount, hasNextEvent, nextEventTitle }: PriorityOrderCardProps) {
+function PriorityOrderCard({ overdueTasksCount, openTodayTasksCount, hasNextEvent, nextEventTitle }: Readonly<PriorityOrderCardProps>) {
+  let overdueMessage = "No overdue work right now.";
+  if (overdueTasksCount > 0) {
+    const itemPlural = overdueTasksCount === 1 ? "" : "s";
+    overdueMessage = `${overdueTasksCount} item${itemPlural} need a decision.`;
+  }
+
   return (
     <Card>
       <p className="section-label">Next move</p>
@@ -71,9 +77,7 @@ function PriorityOrderCard({ overdueTasksCount, openTodayTasksCount, hasNextEven
           <div>
             <p className="font-semibold">Recover anything overdue</p>
             <p className="mt-1 text-muted">
-              {overdueTasksCount > 0
-                ? `${overdueTasksCount} item${overdueTasksCount === 1 ? "" : "s"} need a decision.`
-                : "No overdue work right now."}
+              {overdueMessage}
             </p>
           </div>
         </div>
@@ -110,7 +114,7 @@ interface FocusQueueCardProps {
   timezone: string;
 }
 
-function FocusQueueCard({ focusTasks, overdueTasks, timezone }: FocusQueueCardProps) {
+function FocusQueueCard({ focusTasks, overdueTasks, timezone }: Readonly<FocusQueueCardProps>) {
   return (
     <Card>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -169,7 +173,7 @@ interface ScheduleCardProps {
   timezone: string;
 }
 
-function ScheduleCard({ sortedEvents, timezone }: ScheduleCardProps) {
+function ScheduleCard({ sortedEvents, timezone }: Readonly<ScheduleCardProps>) {
   return (
     <Card>
       <div className="flex items-center justify-between gap-3">
@@ -215,7 +219,7 @@ interface OverdueListCardProps {
   timezone: string;
 }
 
-function OverdueListCard({ topOverdue, timezone }: OverdueListCardProps) {
+function OverdueListCard({ topOverdue, timezone }: Readonly<OverdueListCardProps>) {
   return (
     <Card>
       <div className="flex items-center justify-between gap-3">

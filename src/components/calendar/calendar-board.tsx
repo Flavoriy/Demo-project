@@ -198,7 +198,7 @@ function WeekView({
   openCreateModal,
   openEditModal,
   eventsByDay,
-}: WeekViewProps) {
+}: Readonly<WeekViewProps>) {
   return (
     <div className="overflow-x-auto rounded-[18px] border border-border bg-white shadow-[0_8px_24px_rgba(25,37,55,0.04)]">
       <div className="min-w-[920px]">
@@ -348,7 +348,7 @@ function OtherViews({
   openEditModal,
   deleteEvent,
   eventsByDay,
-}: OtherViewsProps) {
+}: Readonly<OtherViewsProps>) {
   return (
     <div className={cn("grid gap-3", view === "month" ? "md:grid-cols-7" : "grid-cols-1")}>
       {range.days.map((day) => (
@@ -431,7 +431,7 @@ interface AgendaListProps {
   deleteEvent: (id: string) => void;
 }
 
-function AgendaList({ events, timezone, openEditModal, deleteEvent }: AgendaListProps) {
+function AgendaList({ events, timezone, openEditModal, deleteEvent }: Readonly<AgendaListProps>) {
   return (
     <div className="mt-6 space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -498,7 +498,7 @@ function EventFormModal({
   error,
   isPending,
   handleSubmit,
-}: EventFormModalProps) {
+}: Readonly<EventFormModalProps>) {
   return (
     <Modal open={isOpen} onClose={closeModal} title={editing ? "Edit event" : "Create event"}>
       <form className="space-y-4" onSubmit={handleSubmit}>
