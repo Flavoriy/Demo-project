@@ -328,6 +328,32 @@ function SetupHeaderSection({
   );
 }
 
+function getBotApiVal(botConfigured: boolean, status: TelegramStatus | null): string {
+  if (!botConfigured) return "Missing token";
+  if (status) return status.botReachable ? "Reachable" : "Unavailable";
+  return "Not checked";
+}
+
+function getBotApiDetail(status: TelegramStatus | null, trimmedBotToken: boolean): string {
+  if (status?.botDisplayName) {
+    return `${status.botDisplayName}${status.botUsername ? ` (${status.botUsername})` : ""}`;
+  }
+  if (status?.botError) {
+    return status.botError;
+  }
+  if (trimmedBotToken) {
+    return "Save the entered token before checking status.";
+  }
+  return "Use Check status after saving or replacing the bot token.";
+}
+
+function getChatVal(status: TelegramStatus | null, trimmedChatId: boolean): string {
+  if (status) {
+    return !status.chatConfigured ? "Missing Chat ID" : (status.chatReachable ? "Reachable" : "Needs check");
+  }
+  return trimmedChatId ? "Filled in" : "Not configured";
+}
+
 interface StatusTileSectionProps {
   botConfigured: boolean;
   status: TelegramStatus | null;
@@ -349,32 +375,9 @@ function StatusTileSection({
   deliveryInfrastructureReady,
   missingDeliveryEnv,
 }: StatusTileSectionProps) {
-  let botApiVal = "Not checked";
-  if (!botConfigured) {
-    botApiVal = "Missing token";
-  } else if (status) {
-    botApiVal = status.botReachable ? "Reachable" : "Unavailable";
-  }
-
-  let botApiDetail = "Use Check status after saving or replacing the bot token.";
-  if (status?.botDisplayName) {
-    botApiDetail = `${status.botDisplayName}${status.botUsername ? ` (${status.botUsername})` : ""}`;
-  } else if (status?.botError) {
-    botApiDetail = status.botError;
-  } else if (trimmedBotToken) {
-    botApiDetail = "Save the entered token before checking status.";
-  }
-
-  let chatVal = "Not configured";
-  if (status) {
-    if (!status.chatConfigured) {
-      chatVal = "Missing Chat ID";
-    } else {
-      chatVal = status.chatReachable ? "Reachable" : "Needs check";
-    }
-  } else if (trimmedChatId) {
-    chatVal = "Filled in";
-  }
+  const botApiVal = getBotApiVal(botConfigured, status);
+  const botApiDetail = getBotApiDetail(status, trimmedBotToken);
+  const chatVal = getChatVal(status, trimmedChatId);
 
   return (
     <div className="px-5 py-5 md:px-6">
@@ -437,6 +440,190 @@ function StatusTileSection({
   );
 }
 
+function getEffectiveStatus(
+  status: TelegramStatus | null,
+  botConfigured: boolean,
+  appUrlConfigured: boolean,
+  qstashConfigured: boolean,
+  qstashSigningConfigured: boolean,
+  deliveryInfrastructureReady: boolean,
+  integrationSaved: boolean,
+  remindersEnabled: boolean,
+  trimmedChatId: boolean
+): TelegramStatus {
+  if (status) return status;
+  return {
+    botConfigured,
+    botReachable: false,
+    botDisplayName: null,
+    botUsername: null,
+    appUrlConfigured,
+    qstashConfigured,
+    qstashSigningConfigured,
+    deliveryInfrastructureReady,
+    integrationSaved,
+    remindersEnabled,
+    chatConfigured: trimmedChatId,
+    chatReachable: null,
+    chatDisplayName: null,
+    botError: null,
+    chatError: null,
+    checkedAt: null,
+  };
+}
+
+function getGuidance(status: TelegramStatus | null, botConfigured: boolean, effectiveStatus: TelegramStatus) {
+  if (status || !botConfigured) {
+    return buildTelegramStatusGuidance(effectiveStatus);
+  }
+  return {
+    tone: "warning" as const,
+    title: "Check the Telegram setup",
+    description:
+      "A bot token is saved for this user, but the app has not verified it from this deployment yet.",
+    steps: [],
+  };
+}
+
+function getMissingDeliveryEnv(
+  appUrlConfigured: boolean,
+  qstashConfigured: boolean,
+  qstashSigningConfigured: boolean
+): string[] {
+  const list: string[] = [];
+  if (!appUrlConfigured) list.push("NEXT_PUBLIC_APP_URL");
+  if (!qstashConfigured) list.push("QSTASH_TOKEN");
+  if (!qstashSigningConfigured) list.push("QSTASH_CURRENT_SIGNING_KEY / QSTASH_NEXT_SIGNING_KEY");
+  return list;
+}
+
+interface DestinationFormProps {
+  handleSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  botToken: string;
+  setBotToken: (val: string) => void;
+  botTokenSaved: boolean;
+  chatId: string;
+  setChatId: (val: string) => void;
+  telegramUsername: string;
+  setTelegramUsername: (val: string) => void;
+  isEnabled: boolean;
+  setIsEnabled: (val: boolean) => void;
+  error: string | null;
+  message: string | null;
+  status: TelegramStatus | null;
+  integration: {
+    chatId: string;
+    telegramUsername: string | null;
+    isEnabled: boolean;
+  } | null;
+  handleDisconnect: () => void;
+  isPending: boolean;
+}
+
+function DestinationForm({
+  handleSubmit,
+  botToken,
+  setBotToken,
+  botTokenSaved,
+  chatId,
+  setChatId,
+  telegramUsername,
+  setTelegramUsername,
+  isEnabled,
+  setIsEnabled,
+  error,
+  message,
+  status,
+  integration,
+  handleDisconnect,
+  isPending,
+}: DestinationFormProps) {
+  return (
+    <form className="border-t border-border px-5 py-5 md:px-6" onSubmit={handleSubmit}>
+      <div className="flex items-center gap-2">
+        <Send className="size-4 text-accent" />
+        <p className="text-sm font-semibold">Save this user&apos;s Telegram destination</p>
+      </div>
+
+      <div className="mt-4">
+        <label className="mb-2 block text-sm font-medium">Bot token</label>
+        <Input
+          type="password"
+          value={botToken}
+          onChange={(event) => setBotToken(event.target.value)}
+          placeholder={botTokenSaved ? "Saved. Leave blank to keep current token." : "Paste token from BotFather"}
+          autoComplete="off"
+        />
+        <p className="mt-2 text-xs text-muted">
+          {botTokenSaved
+            ? "Stored encrypted in the database. Fill this only when replacing the user's bot token."
+            : "Required for first setup. Each user can save their own bot token."}
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-sm font-medium">Chat ID</label>
+          <Input
+            value={chatId}
+            onChange={(event) => setChatId(event.target.value)}
+            placeholder="Example: 123456789 or -1001234567890"
+          />
+          <p className="mt-2 text-xs text-muted">
+            Required. This is where reminders will be sent.
+          </p>
+        </div>
+        <div>
+          <label className="mb-2 block text-sm font-medium">Telegram username</label>
+          <Input
+            value={telegramUsername}
+            onChange={(event) => setTelegramUsername(event.target.value)}
+            placeholder="@yourname"
+          />
+          <p className="mt-2 text-xs text-muted">Optional label for humans reading the settings.</p>
+        </div>
+      </div>
+
+      <label className="mt-4 flex items-center gap-3 rounded-[12px] border border-border bg-[var(--panel-muted)] px-4 py-3 text-sm">
+        <input
+          type="checkbox"
+          checked={isEnabled}
+          onChange={(event) => setIsEnabled(event.target.checked)}
+          className="size-4 rounded border-border"
+        />
+        Enable Telegram reminders for this user
+      </label>
+
+      {error && (
+        <p className="mt-4 rounded-[12px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      )}
+      {message && (
+        <p className="mt-4 rounded-[12px] border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          {message}
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted">
+          Last check: {status?.checkedAt ? new Date(status.checkedAt).toLocaleString() : "not checked yet"}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {integration ? (
+            <Button type="button" variant="secondary" onClick={handleDisconnect} disabled={isPending}>
+              <Trash2 className="size-4" />
+              Remove
+            </Button>
+          ) : null}
+          <Button type="submit" disabled={isPending}>
+            <KeyRound className="size-4" />
+            {isPending ? "Saving..." : "Save Telegram"}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
 export function TelegramSettingsCard({
   integration,
   botTokenSaved,
@@ -463,44 +650,27 @@ export function TelegramSettingsCard({
   const deliveryInfrastructureReady =
     botConfigured && appUrlConfigured && qstashConfigured && qstashSigningConfigured;
 
-  const effectiveStatus: TelegramStatus = status ?? {
+  const effectiveStatus = getEffectiveStatus(
+    status,
     botConfigured,
-    botReachable: false,
-    botDisplayName: null,
-    botUsername: null,
     appUrlConfigured,
     qstashConfigured,
     qstashSigningConfigured,
     deliveryInfrastructureReady,
-    integrationSaved: Boolean(integration),
-    remindersEnabled: isEnabled,
-    chatConfigured: Boolean(trimmedChatId),
-    chatReachable: null,
-    chatDisplayName: null,
-    botError: null,
-    chatError: null,
-    checkedAt: null,
-  };
+    Boolean(integration),
+    isEnabled,
+    Boolean(trimmedChatId)
+  );
 
-  const guidance =
-    status || !botConfigured
-      ? buildTelegramStatusGuidance(effectiveStatus)
-      : {
-          tone: "warning" as const,
-          title: "Check the Telegram setup",
-          description:
-            "A bot token is saved for this user, but the app has not verified it from this deployment yet.",
-          steps: [],
-        };
-
+  const guidance = getGuidance(status, botConfigured, effectiveStatus);
   const botVerified = status?.botReachable === true;
   const chatVerified = status?.chatReachable === true;
   const readyForReminders = botVerified && chatVerified && isEnabled && deliveryInfrastructureReady;
-  const missingDeliveryEnv = [
-    !appUrlConfigured ? "NEXT_PUBLIC_APP_URL" : null,
-    !qstashConfigured ? "QSTASH_TOKEN" : null,
-    !qstashSigningConfigured ? "QSTASH_CURRENT_SIGNING_KEY / QSTASH_NEXT_SIGNING_KEY" : null,
-  ].filter(Boolean) as string[];
+  const missingDeliveryEnv = getMissingDeliveryEnv(
+    appUrlConfigured,
+    qstashConfigured,
+    qstashSigningConfigured
+  );
 
   const setupSteps = getSetupSteps({
     botConfigured,
@@ -640,88 +810,24 @@ export function TelegramSettingsCard({
         />
       </div>
 
-      <form className="border-t border-border px-5 py-5 md:px-6" onSubmit={handleSubmit}>
-        <div className="flex items-center gap-2">
-          <Send className="size-4 text-accent" />
-          <p className="text-sm font-semibold">Save this user&apos;s Telegram destination</p>
-        </div>
-
-        <div className="mt-4">
-          <label className="mb-2 block text-sm font-medium">Bot token</label>
-          <Input
-            type="password"
-            value={botToken}
-            onChange={(event) => setBotToken(event.target.value)}
-            placeholder={botTokenSaved ? "Saved. Leave blank to keep current token." : "Paste token from BotFather"}
-            autoComplete="off"
-          />
-          <p className="mt-2 text-xs text-muted">
-            {botTokenSaved
-              ? "Stored encrypted in the database. Fill this only when replacing the user's bot token."
-              : "Required for first setup. Each user can save their own bot token."}
-          </p>
-        </div>
-
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium">Chat ID</label>
-            <Input
-              value={chatId}
-              onChange={(event) => setChatId(event.target.value)}
-              placeholder="Example: 123456789 or -1001234567890"
-            />
-            <p className="mt-2 text-xs text-muted">
-              Required. This is where reminders will be sent.
-            </p>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium">Telegram username</label>
-            <Input
-              value={telegramUsername}
-              onChange={(event) => setTelegramUsername(event.target.value)}
-              placeholder="@yourname"
-            />
-            <p className="mt-2 text-xs text-muted">Optional label for humans reading the settings.</p>
-          </div>
-        </div>
-
-        <label className="mt-4 flex items-center gap-3 rounded-[12px] border border-border bg-[var(--panel-muted)] px-4 py-3 text-sm">
-          <input
-            type="checkbox"
-            checked={isEnabled}
-            onChange={(event) => setIsEnabled(event.target.checked)}
-            className="size-4 rounded border-border"
-          />
-          Enable Telegram reminders for this user
-        </label>
-
-        {error ? (
-          <p className="mt-4 rounded-[12px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-        ) : null}
-        {message ? (
-          <p className="mt-4 rounded-[12px] border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-            {message}
-          </p>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted">
-            Last check: {status?.checkedAt ? new Date(status.checkedAt).toLocaleString() : "not checked yet"}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            {integration ? (
-              <Button type="button" variant="secondary" onClick={handleDisconnect} disabled={isPending}>
-                <Trash2 className="size-4" />
-                Remove
-              </Button>
-            ) : null}
-            <Button type="submit" disabled={isPending}>
-              <KeyRound className="size-4" />
-              {isPending ? "Saving..." : "Save Telegram"}
-            </Button>
-          </div>
-        </div>
-      </form>
+      <DestinationForm
+        handleSubmit={handleSubmit}
+        botToken={botToken}
+        setBotToken={setBotToken}
+        botTokenSaved={botTokenSaved}
+        chatId={chatId}
+        setChatId={setChatId}
+        telegramUsername={telegramUsername}
+        setTelegramUsername={setTelegramUsername}
+        isEnabled={isEnabled}
+        setIsEnabled={setIsEnabled}
+        error={error}
+        message={message}
+        status={status}
+        integration={integration}
+        handleDisconnect={handleDisconnect}
+        isPending={isPending}
+      />
     </Card>
   );
 }
