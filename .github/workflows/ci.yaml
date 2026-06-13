@@ -70,12 +70,14 @@ jobs:
 
       # ── SonarQube Cloud ────────────────────────────────────
       - name: SonarQube Cloud Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || env.SONAR_TOKEN }}
         run: |
           set -euo pipefail
           export SONAR_HOST_URL="${SONAR_HOST_URL:-https://sonarcloud.io}"
 
           if [ -z "${SONAR_TOKEN:-}" ]; then
-            echo "::error::SONAR_TOKEN is required. Put it in AWS Secrets Manager secret ${AWS_SHARED_SECRET_ID}."
+            echo "::error::SONAR_TOKEN is required. Configure it as a GitHub Secret (SONAR_TOKEN) or in AWS Secrets Manager secret ${AWS_SHARED_SECRET_ID}."
             exit 1
           fi
 
