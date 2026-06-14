@@ -1,132 +1,241 @@
-# TaskFlow
+# TaskFlow Application
 
-TaskFlow is a personal planning web app built with Next.js App Router, TypeScript, Tailwind CSS, Supabase Auth, Supabase PostgreSQL, and Prisma.
+TaskFlow is a personal planning web application built with Next.js App Router, TypeScript, Tailwind CSS, Supabase Auth, Supabase PostgreSQL, and Prisma. In the DevOps platform, this repository is deployed under the `tikto` application slug and owns the application code, Docker image build, and GitHub Actions CI/CD pipeline.
 
-Current implementation focus:
-- Google-only sign-in through Supabase Auth
-- Protected app shell with dashboard, tasks, calendar, integrations, and settings
-- Task CRUD with timezone-aware status, priority, overdue, and board views
-- Event CRUD with timed vs all-day semantics
-- Responsive desktop/mobile navigation
-- Google Calendar/Tasks sync and Telegram reminder delivery foundations
+## What This Repository Demonstrates
+
+- A production-oriented Next.js application with authenticated dashboard routes.
+- CI validation for linting, TypeScript, tests, coverage, production builds, and SonarQube Cloud quality gates.
+- Docker image build and vulnerability scanning before publishing to GHCR.
+- GitHub Actions reusable workflows and local composite actions for repeatable CI/CD logic.
+- GitHub Actions OIDC integration with AWS for loading secrets from AWS Secrets Manager.
+- GitOps-driven deployment through a separate manifest repository and Argo CD.
+
+## Application Scope
+
+Implemented features:
+
+- Google-only sign-in through Supabase Auth.
+- Protected dashboard shell with tasks, calendar, integrations, and settings.
+- Task CRUD with timezone-aware status, priority, overdue, completed, upcoming, and board views.
+- Event CRUD with timed and all-day event semantics.
+- Dashboard summaries and responsive desktop/mobile navigation.
+- User profile and timezone settings.
+- Google Calendar and Google Tasks integration routes, import jobs, sync helpers, and webhook handling.
+- Telegram integration settings and reminder delivery foundations through QStash.
+
+Known partial areas:
+
+- Calendar watch renewal route exists, but full automation is not completed end to end.
+- Existing Supabase databases should rerun the SQL setup/schema scripts so newly added reminder and sync columns are applied idempotently.
 
 ## Tech Stack
 
-- Next.js 16 App Router
-- React 19
-- Tailwind CSS 4
-- Supabase Auth + SSR helpers
-- Prisma ORM
-- PostgreSQL-ready schema
+| Area | Technology |
+|---|---|
+| Framework | Next.js 16 App Router, React 19 |
+| Language | TypeScript |
+| Styling | Tailwind CSS 4 |
+| Authentication | Supabase Auth with SSR helpers |
+| Database | Supabase PostgreSQL |
+| ORM | Prisma |
+| Validation | Zod |
+| Testing | Vitest with V8 coverage |
+| CI/CD | GitHub Actions reusable workflows and composite actions |
+| Quality | ESLint, TypeScript, SonarQube Cloud |
+| Container | Docker, GHCR, Trivy |
 
-## Local Setup
+## Repository Layout
 
-1. Install dependencies:
+```text
+.
+|-- src/
+|   |-- app/                 # App Router pages, API routes, jobs, and webhooks
+|   |-- components/          # UI and feature components
+|   |-- lib/                 # Shared utilities, auth, dates, Google, Supabase, QStash
+|   |-- server/              # Services and repositories
+|   `-- __tests__/           # Unit tests and test setup
+|-- prisma/                  # Prisma schema
+|-- supabase/                # SQL setup and application schema scripts
+|-- .github/
+|   |-- workflows/           # CI/CD entrypoint and reusable workflows
+|   `-- actions/             # Composite actions used by CI/CD
+|-- Dockerfile
+|-- sonar-project.properties
+`-- package.json
+```
+
+## Local Development
+
+Prerequisites:
+
+- Node.js 22
+- npm
+- A Supabase project or PostgreSQL-compatible database
+
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-2. Copy environment variables:
+Copy environment variables:
 
 ```bash
 cp .env.example .env.local
 ```
 
-3. Fill in at minimum:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `DATABASE_URL`
-- `NEXT_PUBLIC_APP_URL`
+Required baseline variables:
 
-Provider features need additional server-side env:
-- Google sync: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`
-- Telegram reminder scheduling: `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`
-- Telegram bot tokens are saved per user from the Integrations page and encrypted with `TOKEN_ENCRYPTION_KEY`.
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public Supabase browser key |
+| `DATABASE_URL` | PostgreSQL connection string used by Prisma |
+| `NEXT_PUBLIC_APP_URL` | Public base URL for callbacks and generated links |
 
-If your Postgres password contains special characters such as `@` or `#`, percent-encode them inside `DATABASE_URL` or Prisma will fail to parse the host correctly.
-For Vercel, set `DATABASE_URL` to the Supabase `Connect` -> `Connection Pooler` / Supavisor string, not the direct `db.<project-ref>.supabase.co:5432` host.
-Supabase direct database hosts require IPv6; the pooler supports IPv4-compatible environments such as Vercel.
+Optional integration variables:
 
-4. Generate Prisma client:
+| Variable | Purpose |
+|---|---|
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `TOKEN_ENCRYPTION_KEY` | Encryption key for stored integration tokens |
+| `QSTASH_TOKEN` | QStash token for reminder scheduling |
+| `QSTASH_CURRENT_SIGNING_KEY` | Current QStash webhook signing key |
+| `QSTASH_NEXT_SIGNING_KEY` | Next QStash webhook signing key |
+
+Telegram bot tokens are saved per user from the Integrations page and encrypted with `TOKEN_ENCRYPTION_KEY`.
+
+Generate the Prisma client:
 
 ```bash
 npm run prisma:generate
 ```
 
-5. Start the app:
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-## Supabase Auth Profile Mapping
+## Supabase Setup
 
-The application expects:
-- `profiles.id = auth.users.id`
-- a row in `profiles` to be provisioned automatically when a new auth user is created
+The application expects `profiles.id` to match `auth.users.id`, with profile rows provisioned automatically when a new auth user is created.
 
-Use [supabase/setup.sql](supabase/setup.sql) in your Supabase SQL editor to create the profile trigger.
+Run `supabase/setup.sql` in the Supabase SQL editor to create the profile trigger and baseline database objects.
+
+Database notes:
+
+- If the PostgreSQL password contains special characters such as `@` or `#`, percent-encode them in `DATABASE_URL`.
+- For Vercel, prefer the Supabase Connection Pooler / Supavisor string over the direct `db.<project-ref>.supabase.co:5432` host.
+- Supabase direct database hosts require IPv6. The pooler is safer for IPv4-only environments.
 
 ## Verification Commands
 
 ```bash
 npm run lint
 npm run typecheck
+npm run test:coverage
 npm run build
 ```
 
+## Docker Image
+
+The Dockerfile builds the Next.js production runtime on `node:22-alpine`, disables Next.js telemetry, installs dependencies with `npm ci`, runs the production build, prunes development dependencies, and exposes the application on port `3000`.
+
+CI/CD publishes images to:
+
+```text
+ghcr.io/flavoriy/tikto
+```
+
+Image tags use an explicit workflow tag when provided. Otherwise, CI/CD uses a Git tag on the commit; if the commit is not tagged, it increments the latest semver Git tag by one patch version, for example `v1.0.1` becomes `v1.0.2`. If no semver tag exists yet, it starts at `v0.0.1`.
+
 ## GitHub Actions CI/CD
 
-Workflow entrypoint: `.github/workflows/ci-cd.yml`.
+Workflow entrypoint:
 
-The entrypoint stays small and calls reusable workflow files:
+```text
+.github/workflows/ci-cd.yml
+```
 
-- `.github/workflows/ci.yaml`
-- `.github/workflows/cd.yaml`
+The entrypoint delegates to reusable workflows:
 
-Reusable step logic lives in local composite actions under `.github/actions/`.
+| Workflow | Responsibility |
+|---|---|
+| `.github/workflows/ci.yaml` | Lint, typecheck, build, unit tests, coverage, and SonarQube Cloud |
+| `.github/workflows/cd.yaml` | Docker build, Trivy scan, GHCR push, GitOps manifest update, and Argo CD verification |
 
-Flow:
+Reusable delivery logic is implemented as composite actions:
 
-1. Pull requests into `dev` or `main` run the `CI` job only: install, lint, typecheck, unit tests, build, and SonarQube Cloud.
-2. The PR job uses GitHub's `pull_request` merge ref, so tests run against the merged result, not only the source branch.
-3. The SonarQube Cloud step uses `sonar.qualitygate.wait=true`, so the `CI` job fails if the Quality Gate fails.
-4. Push/merge into `dev` runs `CI` first, then `Deploy Dev` automatically.
-5. Push/merge into `main` runs `CI` first, then `Deploy Prod`. `Deploy Prod` references the `prod` GitHub Environment and should be protected with required reviewers.
+| Action | Responsibility |
+|---|---|
+| `.github/actions/build-context` | Resolve branch, environment, manifest file, and Argo CD app name |
+| `.github/actions/docker-image-tags` | Generate image references and expose them to later steps |
+| `.github/actions/load-aws-secrets` | Load JSON secrets from AWS Secrets Manager into the GitHub Actions environment |
+| `.github/actions/update-gitops` | Clone the GitOps repository, update the image patch, commit, and push |
+| `.github/actions/verify-argocd` | Wait for Argo CD sync and health, then verify the deployed image reference |
 
-For branch deployments, configure repository secret:
+Pipeline behavior:
 
-- `AWS_ROLE_TO_ASSUME`: IAM role ARN that GitHub Actions can assume with OIDC.
+| Event | Behavior |
+|---|---|
+| Pull request to `dev` or `main` | Runs CI only. No deployment happens from pull requests. |
+| Push or merge to `dev` | Runs CI, then deploys automatically to the development environment. |
+| Push or merge to `main` | Runs CI, then deploys through the protected `prod` GitHub Environment. |
+| Manual dispatch | Runs the workflow manually using the same pipeline definition. |
 
-The workflow reads these AWS Secrets Manager secrets in `ap-southeast-1`:
+CI details:
 
-- `tikto/shared`
-- `tikto/dev`
-- `tikto/prod`
+- Installs dependencies with `npm ci`.
+- Runs lint, TypeScript checks, unit tests with coverage, and production build validation.
+- Loads `SONAR_TOKEN` from AWS Secrets Manager.
+- Runs SonarQube Cloud on pull requests and `main`.
+- Uses `sonar.qualitygate.wait=true` so CI fails when the Quality Gate fails.
 
-The IAM role needs `secretsmanager:GetSecretValue` for those secrets. The shared secret should contain values such as `SONAR_TOKEN`, `GHCR_USERNAME`, `GHCR_TOKEN`, `GITOPS_USERNAME`, `GITOPS_TOKEN`, `ARGOCD_SERVER`, and `ARGOCD_TOKEN`.
+CD details:
 
-Required GitHub settings:
+- Assumes the configured AWS role through GitHub Actions OIDC.
+- Loads shared and environment-specific secrets from AWS Secrets Manager.
+- Builds the Docker image with environment-specific public build arguments.
+- Scans the image with Trivy and fails on HIGH or CRITICAL vulnerabilities.
+- Pushes the image to GHCR.
+- Updates the matching GitOps image patch file:
 
-- Branch protection for `dev` and `main`: require the `CI` status check before merge.
-- Environment `dev`: no required reviewers.
-- Environment `prod`: add required reviewers to approve production deployment.
+```text
+apps/tikto/overlays/<env>/patch-image.yaml
+```
 
-## Current Scope
+- Verifies the matching Argo CD application when Argo CD access is configured:
 
-Implemented now:
-- Core MVP foundation
-- Task CRUD APIs and UI
-- Event CRUD APIs and UI
-- Dashboard summaries
-- Settings page with timezone/profile update
-- Telegram settings, status guidance, and reminder scheduling through QStash
-- Google integration routes
-- Google bootstrap import job
-- Google Calendar webhook
-- Google Calendar/Tasks sync helpers
+```text
+tikto-dev
+tikto-prod
+```
 
-Still partial:
-- Calendar watch renewal route is present but not automated end-to-end yet.
-- Existing Supabase databases should rerun the SQL setup/schema scripts so newly added reminder and sync columns are added idempotently.
+## Required CI/CD Configuration
+
+GitHub repository secret:
+
+| Secret | Purpose |
+|---|---|
+| `AWS_ROLE_TO_ASSUME` | IAM role ARN that GitHub Actions can assume with OIDC |
+
+AWS Secrets Manager secrets in `ap-southeast-1`:
+
+| Secret ID | Expected Use |
+|---|---|
+| `tikto/shared` | Shared CI/CD values such as `SONAR_TOKEN`, `GHCR_USERNAME`, `GHCR_TOKEN`, `GITOPS_USERNAME`, `GITOPS_TOKEN`, `ARGOCD_SERVER`, and `ARGOCD_TOKEN` |
+| `tikto/dev` | Development runtime/build values |
+| `tikto/prod` | Production runtime/build values |
+
+The IAM role needs `secretsmanager:GetSecretValue` access for those secret IDs.
+
+Recommended GitHub settings:
+
+- Protect `dev` and `main`.
+- Require pull requests before merging.
+- Require the `CI` status check before merging.
+- Use environment `dev` without required reviewers for automatic development deployments.
+- Use environment `prod` with required reviewers for production deployment approval.

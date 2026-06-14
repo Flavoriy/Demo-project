@@ -9,12 +9,14 @@ import {
   ListTodo,
   Settings2,
   Sparkles,
+  Target,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 
 const items = [
   { href: "/dashboard", label: "Today", icon: House },
+  { href: "/focus", label: "Focus", icon: Target },
   { href: "/tasks", label: "Tasks", icon: ListTodo },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/integrations", label: "Integrations", icon: Sparkles },

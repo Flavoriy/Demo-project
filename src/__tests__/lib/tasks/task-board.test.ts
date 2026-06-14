@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { getTaskBoardCounts, getTaskDueMeta, groupTasksByStatus, type TaskBoardRecord } from "@/lib/tasks/task-board";
+import {
+  getFocusPlan,
+  getTaskBoardCounts,
+  getTaskDueMeta,
+  groupTasksByStatus,
+  type TaskBoardRecord,
+} from "@/lib/tasks/task-board";
 
 const baseTask: TaskBoardRecord = {
   id: "task-1",
@@ -72,6 +78,48 @@ describe("task-board helpers", () => {
       TODO: [tasks[0]],
       IN_PROGRESS: [tasks[1]],
       DONE: [tasks[2]],
+    });
+  });
+
+  it("builds a ranked focus plan from open task signals", () => {
+    const tasks: TaskBoardRecord[] = [
+      baseTask,
+      {
+        ...baseTask,
+        id: "task-today",
+        title: "Review CI deploy",
+        status: "IN_PROGRESS",
+        priority: "LOW",
+        dueDate: "2026-05-17",
+        dueAtUtc: "2026-05-17T10:00:00.000Z",
+      },
+      {
+        ...baseTask,
+        id: "task-upcoming",
+        title: "Prepare launch checklist",
+        priority: "HIGH",
+        dueDate: "2026-05-18",
+        dueAtUtc: "2026-05-18T03:00:00.000Z",
+      },
+      {
+        ...baseTask,
+        id: "task-done",
+        status: "DONE",
+        priority: "HIGH",
+        completedAt: "2026-05-17T05:00:00.000Z",
+      },
+    ];
+
+    const plan = getFocusPlan(tasks, "Asia/Ho_Chi_Minh", new Date("2026-05-17T04:00:00.000Z"), 3);
+
+    expect(plan.map((item) => item.task.id)).toEqual(["task-1", "task-today", "task-upcoming"]);
+    expect(plan.map((item) => item.rank)).toEqual([1, 2, 3]);
+    expect(plan[0]).toMatchObject({
+      due: {
+        label: "Overdue",
+        tone: "danger",
+      },
+      reason: "Medium priority and overdue",
     });
   });
 });
