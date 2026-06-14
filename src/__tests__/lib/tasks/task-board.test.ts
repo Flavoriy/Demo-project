@@ -149,4 +149,72 @@ describe("task-board helpers", () => {
     const plan = getFocusPlan(tasks, "Asia/Ho_Chi_Minh", new Date("2026-05-17T04:00:00.000Z"));
     expect(plan[0].task.id).toBe("task-B"); // "A task" comes before "B task" alphabetically
   });
+
+  it("covers remaining branches for getFocusReason and getDueOrder", () => {
+    // 1. getFocusReason - "Already in progress" (IN_PROGRESS but not today/overdue)
+    const taskInProgress = {
+      ...baseTask,
+      status: "IN_PROGRESS" as const,
+      dueDate: null,
+      dueAtUtc: null,
+    };
+    const plan1 = getFocusPlan([taskInProgress], "Asia/Ho_Chi_Minh", new Date());
+    expect(plan1[0].reason).toBe("Already in progress");
+
+    // 2. getFocusReason - "Useful after urgent work is clear"
+    const taskSomeday = {
+      ...baseTask,
+      status: "TODO" as const,
+      priority: "LOW" as const,
+      dueDate: null,
+      dueAtUtc: null,
+    };
+    const plan2 = getFocusPlan([taskSomeday], "Asia/Ho_Chi_Minh", new Date());
+    expect(plan2[0].reason).toBe("Useful after urgent work is clear");
+
+    // 3. getFocusReason - High priority with upcoming and high priority without due date
+    const taskHighUpcoming = {
+      ...baseTask,
+      status: "TODO" as const,
+      priority: "HIGH" as const,
+      dueDate: "2026-05-19",
+      dueAtUtc: null,
+    };
+    const plan3 = getFocusPlan([taskHighUpcoming], "Asia/Ho_Chi_Minh", new Date("2026-05-17T04:00:00.000Z"));
+    expect(plan3[0].reason).toBe("High priority with an upcoming due date");
+
+    const taskHighNoDue = {
+      ...baseTask,
+      status: "TODO" as const,
+      priority: "HIGH" as const,
+      dueDate: null,
+      dueAtUtc: null,
+    };
+    const plan4 = getFocusPlan([taskHighNoDue], "Asia/Ho_Chi_Minh", new Date("2026-05-17T04:00:00.000Z"));
+    expect(plan4[0].reason).toBe("High priority without a due date");
+
+    // 4. getDueOrder - Invalid due date string and no due date
+    const tasksForOrder: TaskBoardRecord[] = [
+      {
+        ...baseTask,
+        id: "task-A",
+        title: "B task",
+        priority: "LOW",
+        dueAtUtc: null,
+        dueDate: null,
+      },
+      {
+        ...baseTask,
+        id: "task-B",
+        title: "A task",
+        priority: "LOW",
+        dueAtUtc: null,
+        dueDate: "invalid-date",
+      },
+    ];
+    const plan5 = getFocusPlan(tasksForOrder, "Asia/Ho_Chi_Minh", new Date("2026-05-17T04:00:00.000Z"));
+    expect(plan5).toHaveLength(2);
+    // B task should come before A task because of the tie-breaking on title (alphabetical sort for A task vs B task)
+    expect(plan5[0].task.id).toBe("task-B"); 
+  });
 });
