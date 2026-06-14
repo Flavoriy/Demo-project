@@ -1,33 +1,37 @@
-# TaskFlow Application
+# TikTo / TaskFlow Application
 
-TaskFlow is a personal planning web application built with Next.js App Router, TypeScript, Tailwind CSS, Supabase Auth, Supabase PostgreSQL, and Prisma. In the DevOps platform, this repository is deployed under the `tikto` application slug and owns the application code, Docker image build, and GitHub Actions CI/CD pipeline.
+TikTo is the application repository for my personal cloud-native DevOps portfolio project. The product itself is a task and calendar planning app built with Next.js, TypeScript, Supabase, and Prisma. In the full platform, this repository is also responsible for CI validation, Docker image delivery, vulnerability scanning, GitOps manifest updates, and Argo CD deployment verification.
 
-## What This Repository Demonstrates
+The application is named `taskflow` in `package.json` and is deployed under the `tikto` Kubernetes application slug.
 
-- A production-oriented Next.js application with authenticated dashboard routes.
-- CI validation for linting, TypeScript, tests, coverage, production builds, and SonarQube Cloud quality gates.
-- Docker image build and vulnerability scanning before publishing to GHCR.
-- GitHub Actions reusable workflows and local composite actions for repeatable CI/CD logic.
-- GitHub Actions OIDC integration with AWS for loading secrets from AWS Secrets Manager.
-- GitOps-driven deployment through a separate manifest repository and Argo CD.
+## Resume Highlights
 
-## Application Scope
+- Built a Next.js 16 App Router application with authenticated dashboard routes and API endpoints.
+- Implemented task, event, profile, integration, and dashboard service layers with repository-based data access.
+- Integrated Supabase Auth, Supabase PostgreSQL, Prisma, Google OAuth foundations, Google Calendar/Tasks sync foundations, Telegram settings, and QStash reminder webhook foundations.
+- Added Vitest unit tests for services, validation logic, utility functions, API helpers, integrations, and date handling.
+- Built a Docker image pipeline that scans images with Trivy and publishes to GHCR.
+- Implemented GitHub Actions reusable workflows and composite actions for CI/CD, AWS Secrets Manager loading, image tagging, GitOps updates, and Argo CD verification.
 
-Implemented features:
+## Application Features
+
+Implemented:
 
 - Google-only sign-in through Supabase Auth.
-- Protected dashboard shell with tasks, calendar, integrations, and settings.
-- Task CRUD with timezone-aware status, priority, overdue, completed, upcoming, and board views.
-- Event CRUD with timed and all-day event semantics.
-- Dashboard summaries and responsive desktop/mobile navigation.
+- Protected dashboard layout with responsive navigation.
+- Task CRUD with status, priority, overdue, completed, upcoming, and board-oriented views.
+- Event CRUD with timed and all-day event handling.
+- Dashboard summaries for daily planning.
 - User profile and timezone settings.
-- Google Calendar and Google Tasks integration routes, import jobs, sync helpers, and webhook handling.
-- Telegram integration settings and reminder delivery foundations through QStash.
+- Google integration routes for OAuth, import, incremental sync, retry, callback, and disconnect flows.
+- Telegram integration settings and reminder delivery foundations.
+- Health endpoint for Kubernetes readiness checks.
 
 Known partial areas:
 
-- Calendar watch renewal route exists, but full automation is not completed end to end.
-- Existing Supabase databases should rerun the SQL setup/schema scripts so newly added reminder and sync columns are applied idempotently.
+- Calendar watch renewal exists as a route, but full production automation is still a future improvement.
+- Existing Supabase databases should rerun the SQL setup/schema scripts when new reminder or sync columns are added.
+- Some integration flows require real third-party credentials and webhook configuration to be tested end to end.
 
 ## Tech Stack
 
@@ -42,17 +46,18 @@ Known partial areas:
 | Validation | Zod |
 | Testing | Vitest with V8 coverage |
 | CI/CD | GitHub Actions reusable workflows and composite actions |
-| Quality | ESLint, TypeScript, SonarQube Cloud |
+| Quality | ESLint, TypeScript, SonarCloud |
 | Container | Docker, GHCR, Trivy |
+| Integrations | Google Calendar, Google Tasks, Telegram, QStash foundations |
 
 ## Repository Layout
 
 ```text
 .
 |-- src/
-|   |-- app/                 # App Router pages, API routes, jobs, and webhooks
+|   |-- app/                 # App Router pages, layouts, API routes, jobs, and webhooks
 |   |-- components/          # UI and feature components
-|   |-- lib/                 # Shared utilities, auth, dates, Google, Supabase, QStash
+|   |-- lib/                 # Shared utilities, auth, Supabase, Google, QStash, dates
 |   |-- server/              # Services and repositories
 |   `-- __tests__/           # Unit tests and test setup
 |-- prisma/                  # Prisma schema
@@ -105,9 +110,7 @@ Optional integration variables:
 | `QSTASH_CURRENT_SIGNING_KEY` | Current QStash webhook signing key |
 | `QSTASH_NEXT_SIGNING_KEY` | Next QStash webhook signing key |
 
-Telegram bot tokens are saved per user from the Integrations page and encrypted with `TOKEN_ENCRYPTION_KEY`.
-
-Generate the Prisma client:
+Generate Prisma client:
 
 ```bash
 npm run prisma:generate
@@ -123,13 +126,12 @@ npm run dev
 
 The application expects `profiles.id` to match `auth.users.id`, with profile rows provisioned automatically when a new auth user is created.
 
-Run `supabase/setup.sql` in the Supabase SQL editor to create the profile trigger and baseline database objects.
+Run the SQL scripts under `supabase/` in the Supabase SQL editor to create baseline database objects and application tables.
 
 Database notes:
 
-- If the PostgreSQL password contains special characters such as `@` or `#`, percent-encode them in `DATABASE_URL`.
-- For Vercel, prefer the Supabase Connection Pooler / Supavisor string over the direct `db.<project-ref>.supabase.co:5432` host.
-- Supabase direct database hosts require IPv6. The pooler is safer for IPv4-only environments.
+- If a PostgreSQL password contains special characters such as `@` or `#`, percent-encode them in `DATABASE_URL`.
+- For hosted deployment environments, prefer the Supabase Connection Pooler / Supavisor string over direct database hosts when IPv4 compatibility matters.
 
 ## Verification Commands
 
@@ -142,7 +144,13 @@ npm run build
 
 ## Docker Image
 
-The Dockerfile builds the Next.js production runtime on `node:22-alpine`, disables Next.js telemetry, installs dependencies with `npm ci`, runs the production build, prunes development dependencies, and exposes the application on port `3000`.
+The Dockerfile builds the production runtime on `node:22-alpine`:
+
+- Installs dependencies with `npm ci`.
+- Runs Prisma generation and `next build`.
+- Prunes development dependencies.
+- Runs the app as a non-root `nextjs` user.
+- Exposes port `3000`.
 
 CI/CD publishes images to:
 
@@ -150,7 +158,7 @@ CI/CD publishes images to:
 ghcr.io/flavoriy/tikto
 ```
 
-Image tags use an explicit workflow tag when provided. Otherwise, CI/CD uses a Git tag on the commit; if the commit is not tagged, it increments the latest semver Git tag by one patch version, for example `v1.0.1` becomes `v1.0.2`. If no semver tag exists yet, it starts at `v0.0.1`.
+Image tags are generated by the delivery workflow. The workflow can use an explicit tag, an existing Git tag, or a semver patch increment when no explicit tag is provided.
 
 ## GitHub Actions CI/CD
 
@@ -160,59 +168,48 @@ Workflow entrypoint:
 .github/workflows/ci-cd.yml
 ```
 
-The entrypoint delegates to reusable workflows:
+Reusable workflows:
 
 | Workflow | Responsibility |
 |---|---|
-| `.github/workflows/ci.yaml` | Lint, typecheck, build, unit tests, coverage, and SonarQube Cloud |
+| `.github/workflows/ci.yaml` | Lint, typecheck, build, unit tests with coverage, and SonarCloud analysis |
 | `.github/workflows/cd.yaml` | Docker build, Trivy scan, GHCR push, GitOps manifest update, and Argo CD verification |
 
-Reusable delivery logic is implemented as composite actions:
+Composite actions:
 
 | Action | Responsibility |
 |---|---|
-| `.github/actions/build-context` | Resolve branch, environment, manifest file, and Argo CD app name |
+| `.github/actions/build-context` | Resolve branch, target environment, GitOps patch file, and Argo CD app name |
 | `.github/actions/docker-image-tags` | Generate image references and expose them to later steps |
-| `.github/actions/load-aws-secrets` | Load JSON secrets from AWS Secrets Manager into the GitHub Actions environment |
+| `.github/actions/load-aws-secrets` | Load JSON secrets from AWS Secrets Manager into GitHub Actions environment variables |
 | `.github/actions/update-gitops` | Clone the GitOps repository, update the image patch, commit, and push |
-| `.github/actions/verify-argocd` | Wait for Argo CD sync and health, then verify the deployed image reference |
+| `.github/actions/verify-argocd` | Wait for Argo CD sync/health and verify the deployed image reference |
 
 Pipeline behavior:
 
 | Event | Behavior |
 |---|---|
-| Pull request to `dev` or `main` | Runs CI only. No deployment happens from pull requests. |
-| Push or merge to `dev` | Runs CI, then deploys automatically to the development environment. |
-| Push or merge to `main` | Runs CI, then deploys through the protected `prod` GitHub Environment. |
-| Manual dispatch | Runs the workflow manually using the same pipeline definition. |
+| Pull request to `dev` or `main` | Runs CI only; no deployment from pull requests |
+| Push or merge to `dev` | Runs CI and deploys to the development environment |
+| Push or merge to `main` | Runs CI and deploys through the protected `prod` GitHub Environment |
+| Manual dispatch | Runs the same workflow manually |
 
-CI details:
+## Delivery Flow
 
-- Installs dependencies with `npm ci`.
-- Runs lint, TypeScript checks, unit tests with coverage, and production build validation.
-- Loads `SONAR_TOKEN` from AWS Secrets Manager.
-- Runs SonarQube Cloud on pull requests and `main`.
-- Uses `sonar.qualitygate.wait=true` so CI fails when the Quality Gate fails.
-
-CD details:
-
-- Assumes the configured AWS role through GitHub Actions OIDC.
-- Loads shared and environment-specific secrets from AWS Secrets Manager.
-- Builds the Docker image with environment-specific public build arguments.
-- Scans the image with Trivy and fails on HIGH or CRITICAL vulnerabilities.
-- Pushes the image to GHCR.
-- Updates the matching GitOps image patch file:
+1. GitHub Actions validates linting, types, tests, coverage, and production build.
+2. SonarCloud runs quality analysis when configured for the event.
+3. The deployment job assumes an AWS role through GitHub Actions OIDC.
+4. Shared and environment-specific values are loaded from AWS Secrets Manager.
+5. Docker builds the application image with environment-specific public build arguments.
+6. Trivy scans the image and fails on HIGH or CRITICAL vulnerabilities.
+7. The approved image is pushed to GHCR.
+8. The matching GitOps image patch is updated:
 
 ```text
 apps/tikto/overlays/<env>/patch-image.yaml
 ```
 
-- Verifies the matching Argo CD application when Argo CD access is configured:
-
-```text
-tikto-dev
-tikto-prod
-```
+9. Argo CD sync and image verification run when Argo CD access is configured.
 
 ## Required CI/CD Configuration
 
@@ -224,18 +221,16 @@ GitHub repository secret:
 
 AWS Secrets Manager secrets in `ap-southeast-1`:
 
-| Secret ID | Expected Use |
+| Secret ID | Expected use |
 |---|---|
-| `tikto/shared` | Shared CI/CD values such as `SONAR_TOKEN`, `GHCR_USERNAME`, `GHCR_TOKEN`, `GITOPS_USERNAME`, `GITOPS_TOKEN`, `ARGOCD_SERVER`, and `ARGOCD_TOKEN` |
-| `tikto/dev` | Development runtime/build values |
-| `tikto/prod` | Production runtime/build values |
+| `tikto/shared` | Shared CI/CD values such as SonarCloud, GHCR, GitOps, and Argo CD credentials |
+| `tikto/dev` | Development runtime and build values |
+| `tikto/prod` | Production runtime and build values |
 
 The IAM role needs `secretsmanager:GetSecretValue` access for those secret IDs.
 
-Recommended GitHub settings:
+## Current Limitations
 
-- Protect `dev` and `main`.
-- Require pull requests before merging.
-- Require the `CI` status check before merging.
-- Use environment `dev` without required reviewers for automatic development deployments.
-- Use environment `prod` with required reviewers for production deployment approval.
+- The project is a personal portfolio application, not a commercial production service.
+- Some external integrations need live credentials, webhook setup, and longer-running jobs to be tested fully end to end.
+- Database migrations are currently documented through SQL/Prisma assets and should be hardened further for automated production rollout.

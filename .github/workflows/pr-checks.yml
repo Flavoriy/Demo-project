@@ -1,0 +1,26 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'supabase/**'
+      - 'gitops-manifest/**'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci:
+    name: CI Check
+    uses: ./.github/workflows/ci.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write

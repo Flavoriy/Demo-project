@@ -1,0 +1,40 @@
+name: Deploy to Prod
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'supabase/**'
+      - 'gitops-manifest/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  ci:
+    name: CI Check
+    uses: ./.github/workflows/ci.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+
+  deploy-prod:
+    name: Deploy Prod
+    needs: ci
+    uses: ./.github/workflows/cd.yaml
+    with:
+      deploy-env: prod
+      environment-name: prod
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
