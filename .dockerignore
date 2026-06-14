@@ -26,3 +26,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# DevOps and VCS configs
+.github
+Dockerfile
+.gitignore
+.dockerignore
+sonar-project.properties
+
+# Documentation
+*.md

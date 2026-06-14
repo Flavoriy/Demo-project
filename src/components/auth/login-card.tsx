@@ -95,8 +95,27 @@ export function LoginCard({
         });
 
         if (error) {
-          setLocalError(error.message);
-          setIsLoading(false);
+          // Attempt automatic sign up if sign in fails (e.g. account doesn't exist)
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+          });
+
+          if (signUpError) {
+            setLocalError(error.message);
+            setIsLoading(false);
+            return;
+          }
+
+          if (signUpData.session) {
+            router.push("/dashboard");
+            router.refresh();
+          } else {
+            setSuccessMessage(
+              "Account created! Please check your email to verify your account or sign in if you already verified it."
+            );
+            setIsLoading(false);
+          }
           return;
         }
 
