@@ -7,6 +7,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN apk add --no-cache libc6-compat openssl
 
+# --- Builder Stage ---
+FROM base AS builder
+
 COPY package*.json prisma ./
 RUN npm ci
 
@@ -29,6 +32,24 @@ RUN npm run build \
     && npm prune --production \
     && npm cache clean --force
 
+# --- Runner Stage ---
+FROM base AS runner
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy pruned node_modules and other required runtime files from builder
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs --chmod=555 /app/.next ./.next
+
+USER nextjs
+
 EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["npm", "run", "start"]
