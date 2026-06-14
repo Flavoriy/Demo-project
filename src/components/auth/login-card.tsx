@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import pkg from "../../../package.json";
 
 export function LoginCard({
   errorMessage,
@@ -318,6 +319,19 @@ export function LoginCard({
             </p>
           </div>
         </section>
+      </div>
+
+      {/* Floating App Version Badge */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-white/80 backdrop-blur-md px-4 py-2.5 shadow-lg select-none hover:scale-105 transition-transform duration-200 cursor-default">
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75"></span>
+            <span className="relative inline-flex size-2 rounded-full bg-accent"></span>
+          </span>
+          <span className="text-[14px] font-extrabold tracking-tight text-foreground">
+            v{pkg.version}
+          </span>
+        </div>
       </div>
     </main>
   );
