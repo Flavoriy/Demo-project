@@ -58,7 +58,7 @@ export function AppFrame({ children }: AppFrameProps) {
       <MobileNavigation />
 
       {/* Floating App Version Badge */}
-      <div className="fixed bottom-6 right-6 z-50 hidden md:block">
+      <div className="fixed bottom-[84px] right-4 md:bottom-6 md:right-6 z-50">
         <div className="flex items-center gap-2 rounded-xl border border-border bg-white/80 backdrop-blur-md px-4 py-2.5 shadow-lg select-none hover:scale-105 transition-transform duration-200 cursor-default">
           <span className="relative flex size-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75"></span>
