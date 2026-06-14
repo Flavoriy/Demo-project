@@ -21,7 +21,16 @@ vi.mock("@/server/services/reminder.service", () => ({
 import { taskRepository } from "@/server/repositories/task.repository";
 import { syncTaskToGoogle } from "@/server/services/google-sync.service";
 import { syncTaskReminders } from "@/server/services/reminder.service";
-import { completeTask, createTask, updateTask } from "@/server/services/task.service";
+import {
+  completeTask,
+  createTask,
+  updateTask,
+  listTasksForView,
+  reopenTask,
+  deleteTask,
+  countCompletedThisWeek,
+  getOverdueTasks,
+} from "@/server/services/task.service";
 
 const mockTaskRepository = vi.mocked(taskRepository);
 const mockSyncTaskToGoogle = vi.mocked(syncTaskToGoogle);
@@ -180,5 +189,72 @@ describe("task.service", () => {
       task: completed,
     });
     expect(mockSyncTaskToGoogle).toHaveBeenCalledWith("user-1", "task-1");
+  });
+
+  it("lists tasks for a view with filters", async () => {
+    const tasks = [makeTask({ status: "TODO" }), makeTask({ id: "task-2", status: "DONE" })];
+    mockTaskRepository.listByUser.mockResolvedValue(tasks);
+
+    const result = await listTasksForView({
+      userId: "user-1",
+      timezone: "Asia/Ho_Chi_Minh",
+      query: { view: "all", status: "TODO" },
+    });
+
+    expect(result.tasks).toHaveLength(1);
+    expect(result.tasks[0].id).toBe("task-1");
+  });
+
+  it("reopens a task", async () => {
+    const existing = makeTask({ status: "DONE", completedAt: new Date() });
+    const reopened = makeTask({ status: "TODO", completedAt: null, syncStatus: "LOCAL_ONLY" });
+    mockTaskRepository.findById.mockResolvedValue(existing);
+    mockTaskRepository.update.mockResolvedValue(reopened);
+
+    const result = await reopenTask("user-1", "task-1");
+
+    expect(result.status).toBe("TODO");
+    expect(result.completedAt).toBeNull();
+    expect(mockTaskRepository.update).toHaveBeenCalledWith("task-1", {
+      status: "TODO",
+      completedAt: null,
+      syncStatus: "LOCAL_ONLY",
+    });
+  });
+
+  it("deletes a task", async () => {
+    const existing = makeTask({ googleTaskId: "google-1" });
+    const deleted = makeTask({ deletedAt: new Date(), syncStatus: "PENDING_DELETE" });
+    mockTaskRepository.findById.mockResolvedValue(existing);
+    mockTaskRepository.update.mockResolvedValue(deleted);
+
+    const result = await deleteTask("user-1", "task-1");
+
+    expect(result.deletedAt).toBeInstanceOf(Date);
+    expect(mockTaskRepository.update).toHaveBeenCalledWith("task-1", expect.objectContaining({
+      syncStatus: "PENDING_DELETE",
+    }));
+  });
+
+  it("counts tasks completed this week", async () => {
+    const weekAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const tasks = [
+      makeTask({ completedAt: weekAgo }),
+      makeTask({ id: "task-2", completedAt: null }),
+    ];
+    mockTaskRepository.listByUser.mockResolvedValue(tasks);
+
+    const result = await countCompletedThisWeek("user-1");
+    expect(result).toBe(1);
+  });
+
+  it("filters overdue tasks", async () => {
+    const tasks = [
+      makeTask({ id: "task-1", status: "TODO", dueDate: "2026-05-10" }),
+      makeTask({ id: "task-2", status: "DONE", dueDate: "2026-05-10" }),
+    ];
+    const overdue = getOverdueTasks(tasks, "Asia/Ho_Chi_Minh");
+    expect(overdue).toHaveLength(1);
+    expect(overdue[0].id).toBe("task-1");
   });
 });

@@ -122,4 +122,31 @@ describe("task-board helpers", () => {
       reason: "Medium priority and overdue",
     });
   });
+
+  it("returns Someday for tasks with no due date", () => {
+    const result = getTaskDueMeta(
+      { ...baseTask, dueDate: null, dueAtUtc: null, dueTime: null },
+      "Asia/Ho_Chi_Minh",
+      new Date("2026-05-17T04:00:00.000Z")
+    );
+    expect(result.label).toBe("Someday");
+  });
+
+  it("handles overdue based on dueDate string comparison", () => {
+    const result = getTaskDueMeta(
+      { ...baseTask, dueAtUtc: null, dueDate: "2026-05-15" },
+      "Asia/Ho_Chi_Minh",
+      new Date("2026-05-17T04:00:00.000Z")
+    );
+    expect(result.label).toBe("Overdue");
+  });
+
+  it("breaks ties during focus plan ranking based on priority, due date, and title", () => {
+    const tasks: TaskBoardRecord[] = [
+      { ...baseTask, id: "task-A", title: "B task", priority: "MEDIUM", dueDate: "2026-05-18", dueAtUtc: null },
+      { ...baseTask, id: "task-B", title: "A task", priority: "MEDIUM", dueDate: "2026-05-18", dueAtUtc: null },
+    ];
+    const plan = getFocusPlan(tasks, "Asia/Ho_Chi_Minh", new Date("2026-05-17T04:00:00.000Z"));
+    expect(plan[0].task.id).toBe("task-B"); // "A task" comes before "B task" alphabetically
+  });
 });

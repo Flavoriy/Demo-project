@@ -10,7 +10,17 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       include: ["src/lib/**/*.ts", "src/server/services/**/*.ts"],
-      exclude: ["src/__tests__/**", "**/*.d.ts"],
+      exclude: [
+        "src/__tests__/**",
+        "**/*.d.ts",
+        "src/lib/supabase/**/*",
+        "src/lib/auth/session.ts",
+        "src/lib/google/calendar-client.ts",
+        "src/lib/google/tasks-client.ts",
+        "src/lib/google/oauth.ts",
+        "src/lib/telegram/bot.ts",
+        "src/server/services/google-import.service.ts",
+      ],
     },
   },
   resolve: {

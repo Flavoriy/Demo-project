@@ -21,7 +21,16 @@ vi.mock("@/server/services/reminder.service", () => ({
 import { eventRepository } from "@/server/repositories/event.repository";
 import { syncEventToGoogle } from "@/server/services/google-sync.service";
 import { syncEventReminders } from "@/server/services/reminder.service";
-import { createEvent, deleteEvent, updateEvent } from "@/server/services/event.service";
+import {
+  createEvent,
+  deleteEvent,
+  updateEvent,
+  listEventsInRange,
+  getCalendarData,
+  getEventFormDefaults,
+  getEventDisplayDateKeys,
+  toEventLocalInputValue,
+} from "@/server/services/event.service";
 
 const mockEventRepository = vi.mocked(eventRepository);
 const mockSyncEventToGoogle = vi.mocked(syncEventToGoogle);
@@ -171,5 +180,54 @@ describe("event.service", () => {
       event: deleted,
     });
     expect(mockSyncEventToGoogle).toHaveBeenCalledWith("user-1", "event-1");
+  });
+
+  it("lists events in range", async () => {
+    const events = [
+      makeEvent({ startDate: "2026-05-18", endDate: "2026-05-18", isAllDay: true }),
+    ];
+    mockEventRepository.listByUser.mockResolvedValue(events);
+
+    const result = await listEventsInRange({
+      userId: "user-1",
+      timezone: "Asia/Ho_Chi_Minh",
+      query: { from: "2026-05-15", to: "2026-05-20" },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("event-1");
+  });
+
+  it("gets calendar data", async () => {
+    const events = [makeEvent()];
+    mockEventRepository.listByUser.mockResolvedValue(events);
+
+    const result = await getCalendarData({
+      userId: "user-1",
+      timezone: "Asia/Ho_Chi_Minh",
+      view: "week",
+      date: "2026-05-18",
+    });
+
+    expect(typeof result.anchorDate).toBe("string");
+    expect(result.events).toBeInstanceOf(Array);
+  });
+
+  it("gets event form defaults", () => {
+    const defaults = getEventFormDefaults("Asia/Ho_Chi_Minh", "2026-05-18");
+    expect(defaults.title).toBe("");
+    expect(defaults.startDate).toBe("2026-05-18");
+  });
+
+  it("gets event display date keys", () => {
+    const event = makeEvent({ startDate: "2026-05-18", endDate: "2026-05-18", isAllDay: true });
+    const keys = getEventDisplayDateKeys(event, "Asia/Ho_Chi_Minh");
+    expect(keys).toContain("2026-05-18");
+  });
+
+  it("formats date to event local input value", () => {
+    const date = new Date("2026-05-18T09:00:00.000Z");
+    const val = toEventLocalInputValue(date, "UTC");
+    expect(val).toBe("2026-05-18T09:00");
   });
 });
